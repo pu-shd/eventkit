@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import yaml
 from pydantic import ValidationError

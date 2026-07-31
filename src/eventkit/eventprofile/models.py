@@ -30,7 +30,8 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
-from typing import Annotated, Any, Iterable, Literal, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
@@ -129,7 +130,7 @@ class CheckinDay(BaseModel):
     icon: str | None = None
 
     @model_validator(mode="after")
-    def _default_label(self) -> "CheckinDay":
+    def _default_label(self) -> CheckinDay:
         # Built by hand rather than with strftime("%-d"): the no-pad directive is
         # a glibc/BSD extension and is not portable (it fails on Windows), and
         # this label is rendered in the front-desk UI on whatever the operator
@@ -162,7 +163,7 @@ class Schedule(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _coherent(self) -> "Schedule":
+    def _coherent(self) -> Schedule:
         if self.end_date < self.start_date:
             raise ValueError(
                 f"end_date {self.end_date} is before start_date {self.start_date}"
@@ -217,7 +218,7 @@ class Swag(BaseModel):
     options: list[SwagOption] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _unique_keys(self) -> "Swag":
+    def _unique_keys(self) -> Swag:
         keys = [o.key for o in self.options]
         duplicates = {k for k in keys if keys.count(k) > 1}
         if duplicates:
@@ -476,7 +477,7 @@ class Lodging(BaseModel):
     rules: list[LodgingRule] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _unique_codes(self) -> "Lodging":
+    def _unique_codes(self) -> Lodging:
         codes = [r.code for r in self.rules]
         duplicates = {c for c in codes if codes.count(c) > 1}
         if duplicates:
@@ -530,7 +531,7 @@ class DrupalConfig(BaseModel):
     join_key: Literal["uuid", "email"] = "uuid"
 
     @model_validator(mode="after")
-    def _need_one(self) -> "DrupalConfig":
+    def _need_one(self) -> DrupalConfig:
         if self.field_map is None and self.webform_schema is None:
             raise ValueError(
                 "drupal must declare either field_map or webform_schema. There is "
@@ -578,7 +579,7 @@ class LinkTemplate(BaseModel):
     roles: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _bearer_needs_query(self) -> "LinkTemplate":
+    def _bearer_needs_query(self) -> LinkTemplate:
         if self.sensitivity == "bearer" and self.param_style == "fragment":
             raise ValueError(
                 "a bearer link cannot use param_style=fragment: the fragment is "

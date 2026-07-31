@@ -29,7 +29,8 @@ import hashlib
 import hmac
 import logging
 import time
-from typing import Any, Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from typing import Any
 
 from pydantic import SecretStr
 
@@ -201,7 +202,7 @@ class WebhookTokens:
         }
 
     @classmethod
-    def from_settings(cls, **named: SecretStr | str) -> "WebhookTokens":
+    def from_settings(cls, **named: SecretStr | str) -> WebhookTokens:
         return cls(named)
 
     def names(self) -> Iterable[str]:

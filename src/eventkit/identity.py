@@ -29,8 +29,9 @@ from __future__ import annotations
 
 import hashlib
 import unicodedata
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     pass
@@ -38,7 +39,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = [
     "PERSON_KEY_VERSION",
     "IdentityError",
-    "IdentityMixin",
+    # Resolved lazily by the module-level __getattr__ below (PEP 562) so that
+    # importing eventkit.identity does not import SQLAlchemy. ruff's F822 cannot
+    # see through __getattr__; removing the name would silently drop it from the
+    # public API. Covered by TestIdentityMixinIsLazy.
+    "IdentityMixin",  # noqa: F822
     "PopulationDiff",
     "diff_populations",
     "normalize_email",

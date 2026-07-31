@@ -25,7 +25,8 @@ plainly wrong.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, NamedTuple
+from collections.abc import Mapping
+from typing import Any, NamedTuple
 
 __all__ = [
     "FALSY",

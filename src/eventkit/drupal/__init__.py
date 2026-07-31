@@ -8,8 +8,9 @@ Public surface::
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -80,7 +81,7 @@ def field_map_stub(want: Iterable[str]) -> str:
 
 
 def resolve_field_map(
-    profile: "EventProfile",
+    profile: EventProfile,
     *,
     want: Iterable[str],
     base_dir: Path | None = None,

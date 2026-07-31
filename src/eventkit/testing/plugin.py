@@ -22,8 +22,9 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import socket
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
 import pytest
 
@@ -54,7 +55,10 @@ def _no_network(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch)
     def _is_local(address: Any) -> bool:
         if isinstance(address, tuple) and address:
             host = str(address[0])
-            return host in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or host.startswith(
+            # S104 flags "0.0.0.0" as binding to all interfaces. This is the
+            # opposite: it is the _no_network fixture deciding whether an
+            # outbound connect target is loopback and may be allowed through.
+            return host in ("127.0.0.1", "::1", "localhost", "0.0.0.0") or host.startswith(  # noqa: S104
                 "127."
             )
         # AF_UNIX and friends: local by definition.
@@ -253,7 +257,10 @@ def all_drupal_payloads() -> dict[str, dict[str, Any]]:
 # --------------------------------------------------------------------------
 # Webhook headers
 # --------------------------------------------------------------------------
-STRONG_TEST_TOKEN = "0123456789abcdef0123456789abcdef0123456789abcdef"
+# Not a credential: a fixed 48-char value used by the webhook fixtures so that
+# tests exercise a token long enough to clear the strength check. Never valid
+# anywhere. (S105 flags any name containing "TOKEN".)
+STRONG_TEST_TOKEN = "0123456789abcdef0123456789abcdef0123456789abcdef"  # noqa: S105
 
 
 @pytest.fixture

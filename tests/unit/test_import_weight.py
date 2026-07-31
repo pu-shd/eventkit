@@ -74,7 +74,10 @@ _BLOCKER = textwrap.dedent(
 
 def run_without_heavy_packages(body: str) -> subprocess.CompletedProcess[str]:
     script = _BLOCKER.format(blocked=HEAVY_PACKAGES, body=textwrap.indent(body, ""))
-    return subprocess.run(
+    # A fresh interpreter is the only way to measure what a module imports:
+    # sys.modules in this process is already populated. The argv is built here
+    # from sys.executable and a literal script, never from external input.
+    return subprocess.run(  # noqa: S603
         [sys.executable, "-c", script], capture_output=True, text=True
     )
 

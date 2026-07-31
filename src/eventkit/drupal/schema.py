@@ -18,8 +18,9 @@ startup, and absent configuration is a startup failure — see
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, Iterable, Literal, Mapping
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -125,14 +126,14 @@ class FieldMap(BaseModel):
     def rule(self, logical_name: str) -> FieldRule | None:
         return self.fields.get(logical_name)
 
-    def merged_with(self, other: "FieldMap") -> "FieldMap":
+    def merged_with(self, other: FieldMap) -> FieldMap:
         """Return a copy where ``other``'s rules win. Used for per-app overlays."""
         merged = dict(self.fields)
         merged.update(other.fields)
         return FieldMap(fields=merged)
 
     @classmethod
-    def from_pairs(cls, pairs: Mapping[str, str]) -> "FieldMap":
+    def from_pairs(cls, pairs: Mapping[str, str]) -> FieldMap:
         """Convenience for the common ``{logical: element_key}`` shape."""
         return cls(fields={name: FieldRule(key=key) for name, key in pairs.items()})
 
@@ -151,7 +152,7 @@ class WebformSchema(BaseModel):
     elements: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @classmethod
-    def from_yaml_text(cls, text: str) -> "WebformSchema":
+    def from_yaml_text(cls, text: str) -> WebformSchema:
         raw = yaml.safe_load(text) or {}
         if not isinstance(raw, dict):
             raise ValueError("webform schema must be a YAML mapping of element keys")
@@ -167,7 +168,7 @@ class WebformSchema(BaseModel):
         return cls(elements=elements)
 
     @classmethod
-    def from_path(cls, path: str | Path) -> "WebformSchema":
+    def from_path(cls, path: str | Path) -> WebformSchema:
         resolved = Path(path)
         return cls.from_yaml_text(resolved.read_text(encoding="utf-8"))
 

@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
-from typing import Iterable, Mapping
+from collections.abc import Iterable, Mapping
 
 from .models import (
     DEFAULT_STATUS_MAP,
@@ -78,7 +78,7 @@ def aggregate_by_email(
         which keeps sync logs stable across runs for the same input.
     """
     # Naive UTC, matching the stored columns. `utcnow()` is deprecated from 3.12.
-    fallback_time = now or _dt.datetime.now(_dt.timezone.utc).replace(tzinfo=None)
+    fallback_time = now or _dt.datetime.now(_dt.UTC).replace(tzinfo=None)
     result: dict[str, AggregatedPayment] = {}
     unmapped: set[str] = set()
 

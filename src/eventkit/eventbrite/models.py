@@ -11,8 +11,9 @@ none of it could be tested without both a network and a database.
 from __future__ import annotations
 
 import datetime as _dt
+from collections.abc import Mapping
 from enum import StrEnum
-from typing import Any, Final, Mapping
+from typing import Any, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -89,7 +90,7 @@ def parse_eventbrite_datetime(value: Any) -> _dt.datetime | None:
         except ValueError:
             return None
     if parsed.tzinfo is not None:
-        parsed = parsed.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+        parsed = parsed.astimezone(_dt.UTC).replace(tzinfo=None)
     return parsed
 
 
@@ -124,7 +125,7 @@ class Attendee(BaseModel):
     ticket_class_name: str | None = None
 
     @classmethod
-    def from_api(cls, obj: Mapping[str, Any]) -> "Attendee | None":
+    def from_api(cls, obj: Mapping[str, Any]) -> Attendee | None:
         """Build from one element of the ``attendees`` array.
 
         Returns ``None`` when there is no email address, because email is the

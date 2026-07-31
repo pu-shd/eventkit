@@ -244,6 +244,7 @@ class TestResolveFieldMap:
         explanation itself a build failure.
         """
         import ast
+
         import eventkit.drupal.schema as schema_module
 
         tree = ast.parse(Path(schema_module.__file__).read_text(encoding="utf-8"))
