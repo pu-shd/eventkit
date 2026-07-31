@@ -1,0 +1,10 @@
+{
+  "_comment": "Carries two element keys no field map declares. eventkit.drupal reports them as unmapped_keys and the app exposes them at GET /api/webhook/status, so a live element rename in Drupal surfaces as a warning within one submission rather than as silently dropped registrations.",
+  "sid": 113,
+  "serial": 24,
+  "uuid": "4e7bc508-e39a-4f27-c58e-60239197fb3c",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" },
+  "dietary_restrictions_v2": "Vegetarian",
+  "newly_renamed_element": "surprise"
+}

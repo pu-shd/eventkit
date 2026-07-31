@@ -1,0 +1,7 @@
+{
+  "_comment": "Must be rejected: no email and no uuid means no person_key can be derived. The webhook should answer 400, not invent a key.",
+  "sid": 110,
+  "serial": 21,
+  "registrant_name": { "first": "Nemo", "last": "Nobody" },
+  "tickets_sold_separately": "0"
+}

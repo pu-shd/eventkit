@@ -1,0 +1,11 @@
+{
+  "sid": 107,
+  "serial": 18,
+  "uuid": "f26d0b3c-9e45-4a72-d03f-1b7e5c42a68d",
+  "email": "kit@example.edu",
+  "registrant_name": { "first": "Kit", "last": "Marlowe" },
+  "lodging": "Yes",
+  "gender_identity": { "select": "_other_", "other": "Genderqueer" },
+  "roommate_preference": "Prefer Same Gender",
+  "identified_roommate": "Ada Lovelace"
+}

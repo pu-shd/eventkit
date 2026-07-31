@@ -1,0 +1,17 @@
+{
+  "sid": 102,
+  "serial": 13,
+  "webform_id": "registration",
+  "data": {
+    "uuid": "7c1e4b90-2d3a-4f68-b5c1-9e0a7d24f8b6",
+    "email": "grace@example.edu",
+    "registrant_name": { "first": "Grace", "last": "Hopper" },
+    "tickets_sold_separately": "0",
+    "attendee_status": "Speaker",
+    "student": "0",
+    "home_institution_or_organization": "Example Institute",
+    "t_shirt_size": "ULRG",
+    "presenting_poster": "0",
+    "lodging": "Yes"
+  }
+}

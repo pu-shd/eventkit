@@ -1,0 +1,15 @@
+{
+  "sid": 101,
+  "serial": 12,
+  "uuid": "3f2a9c14-8b7d-4e51-9a2f-1c6b8d0e5a73",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" },
+  "tickets_sold_separately": "1",
+  "attendee_status": "Attendee",
+  "student": "Yes",
+  "home_institution_or_organization": "Example University",
+  "t_shirt_size": "UMED",
+  "presenting_poster": "0",
+  "lodging": "No",
+  "destination_url": "https://www.eventbrite.com/e/example-tickets-1234567890?discount=EXAMPLEGA"
+}

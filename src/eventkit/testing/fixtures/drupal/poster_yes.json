@@ -1,0 +1,13 @@
+{
+  "sid": 201,
+  "serial": 40,
+  "data": {
+    "uuid": "5f8cd619-f4ab-4038-d69f-71340208ac4d",
+    "email": "ada@example.edu",
+    "registrant_name": { "first": "Ada", "last": "Lovelace" },
+    "presenting_poster": "Yes",
+    "poster_title": "On the Analytical Engine: $O(n \\log n)$ Weaving",
+    "faculty_adviser_name": "Prof. Example Adviser",
+    "poster_presentation_abstract": "We consider $\\alpha < \\beta$ and the case where ]]> appears in the text, to exercise XML escaping in the RSS feed."
+  }
+}

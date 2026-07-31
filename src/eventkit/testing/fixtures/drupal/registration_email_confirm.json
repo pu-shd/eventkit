@@ -1,0 +1,8 @@
+{
+  "sid": 106,
+  "serial": 17,
+  "uuid": "e15c9a2b-8d34-4f61-c92e-0a6d4b31f57c",
+  "email": { "mail_1": "Ada@Example.EDU  ", "mail_2": "Ada@Example.EDU" },
+  "registrant_name": { "first": "Ada", "last": "Lovelace" },
+  "tickets_sold_separately": "1"
+}

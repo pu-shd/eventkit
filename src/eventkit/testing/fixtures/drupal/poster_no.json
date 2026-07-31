@@ -1,0 +1,13 @@
+{
+  "_comment": "presenting_poster falsy: the presenter must be soft-hidden, not deleted, so a later corrected submission makes them visible again with updated fields.",
+  "sid": 202,
+  "serial": 41,
+  "data": {
+    "uuid": "608de72a-05bc-4149-e7a0-824513920b6f",
+    "email": "grace@example.edu",
+    "registrant_name": { "first": "Grace", "last": "Hopper" },
+    "presenting_poster": "No",
+    "poster_title": "",
+    "poster_presentation_abstract": null
+  }
+}

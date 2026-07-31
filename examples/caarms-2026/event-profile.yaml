@@ -1,0 +1,246 @@
+# CAARMS 2026 — the reference event profile.
+#
+# CAARMS 2026 was the most complicated event this stack runs: conditional
+# ticketing driven by Drupal Twig, lodging offered only to non-Princeton
+# students, t-shirt swag with inventory, and a separate banquet check-in. It is
+# shipped as the worked example precisely because it exercises everything, so an
+# adopter running something simpler can delete sections rather than invent them.
+#
+# SANITISED. This file is public. Compared with what actually ran:
+#
+#   * Discount codes are gone. Tiers name an ENVIRONMENT VARIABLE
+#     (`discount_code_env`); the code itself lives in an App Service app setting.
+#     Note that discount codes are semi-public by nature — the Twig that computes
+#     `destination_url` is delivered to the browser, so any registrant can read
+#     one. Keeping them out of a public repository is still right; do not
+#     document them as secrets.
+#   * Staff email addresses are replaced with example.edu equivalents. The live
+#     `posted/backend/config.py:25` committed seven real netIDs as a default.
+#   * No webhook tokens, no speaker prefill tokens, no `azurewebsites.net`
+#     hostnames, no WAF bypass header.
+#
+# See event-stack/docs/EVENT-PROFILE-SPEC.md for every key, type and default.
+
+schema_version: 1
+
+event:
+  name: "Conference for African American Researchers in the Mathematical Sciences"
+  short_name: "CAARMS"
+  year: 2026
+  slug: caarms-2026
+  site_url: "https://caarms.princeton.edu"
+  registration_form_url: "https://caarms.princeton.edu/form/registration"
+  contact_email: "events@example.edu"          # sanitised
+
+schedule:
+  timezone: America/New_York
+  start_date: 2026-06-28
+  end_date: 2026-07-01
+  # ISO keys, not the "6/28" / "7/1" the front end hardcoded. Year-less keys
+  # collide across events and are ambiguous to parse — both "7/1" and "07/01"
+  # appear in the live data.
+  checkin_days:
+    - { key: "2026-06-28", date: 2026-06-28 }
+    - { key: "2026-06-29", date: 2026-06-29 }
+    - { key: "2026-06-30", date: 2026-06-30 }
+    # The banquet is a separate check-in from the day it falls on.
+    - { key: "2026-06-30-banquet", date: 2026-06-30, kind: event,
+        label: "Banquet", icon: utensils }
+    - { key: "2026-07-01", date: 2026-07-01 }
+
+branding:
+  site_name: "CAARMS 2026 Registration & Ticket Dashboard"
+  slogan: "Webform & ticket-vendor reconciliation"
+  theme: princeton-orfe
+  # Princeton Orange. Resolves the #f58025 vs #e77500 conflict in favour of
+  # #e77500, which is what paper-tiger/tokens/tokens.json already declares.
+  # #f58025 (the older SEAS orange) appeared ~40 times as an inline style
+  # attribute; those all become var(--pt-brand-70).
+  brand_color: "#e77500"
+  logo_url: "/ui/themes/princeton-orfe/assets/logos/pu-logo.svg"
+  logo_stacked_url: "/ui/themes/princeton-orfe/assets/logos/pu-logo-stacked.svg"
+  favicon_url: "/ui/themes/princeton-orfe/assets/logos/favicon.ico"
+  css_override_url: "/static/theme.override.css"
+
+drupal:
+  join_key: uuid
+  # Present so `infer_field_map` can be exercised against a real export; the
+  # explicit field_map below takes precedence.
+  webform_schema: ./webform-schema.yml
+  field_map:
+    fields:
+      email:                  { key: [email, confirm_email_address], kind: email, required: true }
+      name:                   { key: registrant_name, kind: name, required: true }
+      sid:                    { key: sid, kind: int }
+      serial:                 { key: serial, kind: int }
+      # The registration webform has always emitted this and no application ever
+      # read it; email was used as the join key instead, which breaks the moment
+      # anyone corrects a typo'd address.
+      uuid:                   { key: uuid, kind: text }
+      tickets_sold_separately: { key: tickets_sold_separately, kind: bool }
+      destination_url:        { key: destination_url, kind: url }
+      t_shirt_size:           { key: t_shirt_size, kind: select }
+      attendee_status:        { key: attendee_status, kind: select }
+      student:                { key: student, kind: bool }
+      home_institution_or_organization: { key: home_institution_or_organization, kind: text }
+      presenting_poster:      { key: presenting_poster, kind: bool }
+      poster_title:           { key: poster_title, kind: text }
+      faculty_adviser_name:   { key: faculty_adviser_name, kind: text }
+      poster_presentation_abstract: { key: poster_presentation_abstract, kind: text }
+      lodging:                { key: lodging, kind: bool }
+      gender_identity:        { key: gender_identity, kind: select_other }
+      roommate_preference:    { key: roommate_preference, kind: select }
+      identified_roommate:    { key: identified_roommate, kind: text }
+
+roles:
+  drupal_field: attendee_status
+  default: Attendee
+  options:
+    - { key: Speaker,   label: Speaker,   plural: Speakers,   badge_class: role-speaker,   color: "#e77500", sort: 1 }
+    - { key: Organizer, label: Organizer, plural: Organizers, badge_class: role-organizer, color: "#1a1a1a", sort: 2 }
+    - { key: Attendee,  label: Attendee,  plural: Attendees,  badge_class: role-attendee,  color: "#6c757d", sort: 3 }
+
+affiliation:
+  drupal_field: home_institution_or_organization
+  placeholder_values: ["", "n/a", "na", "none", "null", "-", "--"]
+  # This one rule existed in six places: four Python copies and two JavaScript
+  # copies across the two repositories.
+  domain_map:
+    princeton.edu: "Princeton University"
+
+ticketing:
+  vendor: eventbrite
+  slug: caarms-2026
+  exempt_field: tickets_sold_separately
+  exempt_means: unchecked_is_exempt
+  prefer_destination_url_discount: true
+  event_url_template: "https://www.eventbrite.com/e/{slug}-tickets-{event_id}"
+  status_order: [Unmatched, Pending, Paid, Complete, Waived, Exempt, Refunded, Cancelled]
+  tiers:
+    # Order matters: the first matching tier wins, and the `default: true` tier
+    # is the fallback regardless of position.
+    - key: pu-affiliate
+      label: "Princeton faculty / staff / student"
+      discount_code_env: EVENTBRITE_DISCOUNT_PU_AFFILIATE
+      match: { email_domain_suffix: ["princeton.edu"] }
+    - key: general
+      label: "General admission"
+      discount_code_env: EVENTBRITE_DISCOUNT_GENERAL
+      match: { default: true }
+
+swag:
+  enabled: true
+  kind: t-shirt
+  drupal_field: t_shirt_size
+  allow_replacement: true
+  # This vocabulary was duplicated in five-plus places across Python, JavaScript,
+  # tests and startup seeding. `ticket-reconciler` owns swag exclusively:
+  # nametag-press stored t_shirt_size, backed it up, and never rendered it.
+  options:
+    - { key: NONE, label: "No T-Shirt, Thanks!", short: "—", counts_toward_inventory: false, sort: 0 }
+    - { key: USML, label: "Unisex - Small",  short: "S",   sort: 1 }
+    - { key: UMED, label: "Unisex - Medium", short: "M",   sort: 2 }
+    - { key: ULRG, label: "Unisex - Large",  short: "L",   sort: 3 }
+    - { key: U1XL, label: "Unisex - 1XL",    short: "1XL", sort: 4 }
+    - { key: U2XL, label: "Unisex - 2XL",    short: "2XL", sort: 5 }
+    - { key: U3XL, label: "Unisex - 3XL",    short: "3XL", sort: 6 }
+
+lodging:
+  enabled: true
+  drupal_field: lodging
+  vocab:
+    gender_identity_options: ["Woman", "Man", "Non-binary", "Other", "Prefer not to say"]
+    roommate_preference_options:
+      ["No Preference", "Prefer Same Gender", "Require Same Gender", "Single Room Requested"]
+    room_gender_options: ["Any", "Man", "Woman", "Non-binary", "Mixed"]
+    room_categories: ["Speaker Room", "Student Room"]
+    default_capacity: 2
+    capacities: [1, 2, 3, 4]
+  # Severity is per-event data, not code, so tests assert rule CODES and never
+  # prose. The client-side engine these mirror has zero coverage today because it
+  # lives in a <script> tag reading page globals.
+  rules:
+    - { code: OVER_CAPACITY,                severity: error }
+    - { code: ROOM_GENDER_MISMATCH,         severity: error }
+    - { code: REQUIRE_SAME_GENDER_VIOLATED, severity: error }
+    - { code: PREFER_SAME_GENDER_VIOLATED,  severity: warning }
+    - { code: ROOMMATE_NOT_REGISTERED,      severity: warning }
+    - { code: ROOMMATE_ELSEWHERE,           severity: warning }
+    - { code: ROOMMATE_ONE_SIDED,           severity: warning }
+    - { code: SINGLE_ROOM_SHARED,           severity: warning }
+
+nametags:
+  avery_template: "5392"
+  show_role_badge: true
+  show_affiliation: true
+  primary_logo_url: "/ui/themes/princeton-orfe/assets/logos/pu-logo.svg"
+
+notify:
+  # `log` by default so a fresh deployment never silently fails to send. SMTP is
+  # the recommended real transport: every university has a relay, whereas ACS
+  # needs a provisioned Communication Service and DNS access an adopter may not
+  # have.
+  transport: log
+  from_name: "CAARMS 2026 Registration"
+  default_recipients: ["events@example.edu"]   # sanitised
+  events:
+    unmatched_payment: true
+    completed_payment: true
+    pending_payment: false
+    exempt_registration: false
+    sync_failed: true
+
+links:
+  reimbursement:
+    label: "Travel reimbursement form"
+    url: "https://orfe.princeton.edu/forms/reimbursement"
+    # Fragment params never reach a server: not access logs, not Referer, not a
+    # CDN. This is the entire content of admin_reimbursement.html:289, turned
+    # into data.
+    param_style: fragment
+    sensitivity: pii
+    fragment_params:
+      Business_Purpose: "CAARMS 2026"
+      Departure_date: "2026-06-28"
+      Return_Date: "2026-07-01"
+    prefill:
+      Signer_name: "{full_name}"
+      Signer_email: "{email}"
+
+  media_release:
+    label: "Media release (DocuSign PowerForm)"
+    url: "https://na3.docusign.net/Member/PowerFormSigning.aspx"
+    # Query params DO reach the server and land in access logs. Accepted here
+    # because a PowerForm cannot be prefilled any other way; link-forge renders a
+    # warning banner on any query+pii kind.
+    param_style: query
+    sensitivity: pii
+    query_params_from_env: { PowerFormId: DOCUSIGN_MEDIA_RELEASE_FORM_ID }
+    query_params:
+      Event_Title: "CAARMS 2026"
+      Event_Dates: "2026-06-28"
+      Event_Location: "Princeton University"
+    prefill:
+      Signer_UserName: "{full_name}"
+      Signer_Email: "{email}"
+
+  slide_upload:
+    label: "Upload your slides"
+    url: "https://caarms.princeton.edu/form/slide-upload"
+    param_style: query
+    sensitivity: pii
+    prefill: { email: "{email}", first_name: "{first_name}", last_name: "{last_name}" }
+    roles: [Speaker]
+
+  speaker_prefill:
+    label: "Edit your bio & talk submission"
+    url: "https://caarms.princeton.edu/form/speaker-bios-talks"
+    # A bearer credential. `param_style: query` is REQUIRED and enforced by
+    # validation: a fragment is never sent to the server, so it would not
+    # prefill anything. The token comes from a secret map at runtime and is never
+    # committed — links-for-speakers.html, which contains nine live 43-character
+    # bearer links, is exactly the mistake this design prevents.
+    param_style: query
+    sensitivity: bearer
+    prefill: { token: "{token}" }
+    roles: [Speaker]

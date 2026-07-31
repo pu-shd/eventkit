@@ -1,0 +1,12 @@
+{
+  "_comment": "Empty string vs null vs absent must all normalise to None, so a downstream query does not need (col == '') | (col.is_(None)) to be correct.",
+  "sid": 112,
+  "serial": "",
+  "uuid": "3d6ab4f7-d289-4e16-b47d-5f129086ea2b",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "" },
+  "home_institution_or_organization": "   ",
+  "poster_title": null,
+  "faculty_adviser_name": "",
+  "t_shirt_size": ""
+}

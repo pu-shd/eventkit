@@ -1,0 +1,8 @@
+{
+  "_comment": "The catastrophic case. If the uuid element is misconfigured or the token is unavailable in the handler's context, Drupal posts the token text itself. Accepting it verbatim would give EVERY registrant the same person_key and collapse the whole roster onto one row. eventkit.identity._clean_uuid rejects any bracketed value and falls back to the email hash.",
+  "sid": 111,
+  "serial": 22,
+  "uuid": "[webform_submission:uuid]",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" }
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "serial present, sid absent. Both existing webhooks reject a payload with neither, so the pair must be read independently.",
+  "serial": 23,
+  "uuid": "2c59a3e6-c178-4d05-a36c-4e018f75d91a",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" }
+}

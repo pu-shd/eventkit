@@ -1,0 +1,150 @@
+# The registration webform's element definitions, as exported from Drupal.
+#
+# Note the shape: this is an element-only body, not a full config envelope. That
+# matters for import — `drush cim` needs it wrapped and renamed
+# `webform.webform.registration.yml`, and `drush webform:import` does NOT import
+# definitions (it imports submissions). See
+# drupal-event-forms/docs/IMPORT.md for the two real import paths.
+#
+# This file exists here so `WebformSchema.infer_field_map` can be exercised
+# against a realistic export. The profile's explicit `field_map` takes
+# precedence; inference is a convenience for adopters whose element keys already
+# match the canonical names, and it warns on every heuristic match.
+#
+# Replaces `ticketed/backend/schema_parser.py`'s embedded DEFAULT_SCHEMA_YAML,
+# which always won because no webform-schema.yml ever shipped in the image — so
+# every adopter silently ran the CAARMS field map against their own webform.
+
+processed_text:
+  '#type': processed_text
+  '#access_create_roles':
+    - anonymous
+  '#text': '<p>Affiliates need to log in first to complete this form, otherwise they risk invalidating their registration.</p>'
+  '#format': ps_limited_html
+
+user_authentication_check:
+  '#type': hidden
+  '#title': 'UID Check'
+  '#default_value': '[current-user:uid]'
+  '#prepopulate': true
+
+serial:
+  '#type': value
+  '#title': 'Serial number'
+  '#default_value': '[webform_submission:serial]'
+
+sid:
+  '#type': value
+  '#title': 'Submission ID'
+  '#default_value': '[webform_submission:sid]'
+
+uuid:
+  '#type': value
+  '#title': 'Submission UUID'
+  '#default_value': '[webform_submission:uuid]'
+
+registrant_name:
+  '#type': webform_name
+  '#title': 'Registrant Name'
+  '#required': true
+
+email:
+  '#type': email
+  '#title': 'Email Address'
+  '#required': true
+
+confirm_email_address:
+  '#type': email_confirm
+  '#title': 'Confirm Email Address'
+  '#required': true
+  '#title_display': invisible
+  '#flex': 1
+
+attendee_status:
+  '#type': select
+  '#title': 'Attendee Status'
+  '#options':
+    Speaker: Speaker
+    Organizer: Organizer
+    Attendee: Attendee
+
+student:
+  '#type': checkbox
+  '#title': 'I am a student'
+
+home_institution_or_organization:
+  '#type': textfield
+  '#title': 'Home Institution or Organization'
+
+tickets_sold_separately:
+  '#type': checkbox
+  '#title': 'I am buying my tickets separately'
+  '#description': 'Check this box only if you are purchasing your tickets separately.'
+  '#access_create_roles':
+    - anonymous
+    - authenticated
+
+t_shirt_size:
+  '#type': select
+  '#title': 'T-Shirt Size'
+  '#options':
+    NONE: 'No T-Shirt, Thanks!'
+    USML: 'Unisex - Small'
+    UMED: 'Unisex - Medium'
+    ULRG: 'Unisex - Large'
+    U1XL: 'Unisex - 1XL'
+    U2XL: 'Unisex - 2XL'
+    U3XL: 'Unisex - 3XL'
+
+presenting_poster:
+  '#type': checkbox
+  '#title': 'I am presenting a poster'
+
+poster_title:
+  '#type': textfield
+  '#title': 'Poster Title'
+
+faculty_adviser_name:
+  '#type': textfield
+  '#title': 'Faculty Adviser Name'
+
+poster_presentation_abstract:
+  '#type': textarea
+  '#title': 'Poster Presentation Abstract'
+
+lodging:
+  '#type': checkbox
+  '#title': 'I need lodging'
+  '#description': 'Offered to non-Princeton students only.'
+
+gender_identity:
+  '#type': webform_select_other
+  '#title': 'Gender Identity'
+  '#options':
+    Woman: Woman
+    Man: Man
+    'Non-binary': 'Non-binary'
+    Other: Other
+    'Prefer not to say': 'Prefer not to say'
+
+roommate_preference:
+  '#type': select
+  '#title': 'Roommate Preference'
+  '#options':
+    'No Preference': 'No Preference'
+    'Prefer Same Gender': 'Prefer Same Gender'
+    'Require Same Gender': 'Require Same Gender'
+    'Single Room Requested': 'Single Room Requested'
+
+identified_roommate:
+  '#type': textfield
+  '#title': 'Requested Roommate'
+
+destination_url:
+  '#type': hidden
+  '#title': 'Computed ticket destination'
+
+actions:
+  '#type': webform_actions
+  '#title': 'Submit button(s)'
+  '#submit__label': Register

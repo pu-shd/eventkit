@@ -1,0 +1,10 @@
+{
+  "sid": 108,
+  "serial": 19,
+  "uuid": "0a37e1c4-af56-4b83-e14a-2c8f6d53b79e",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" },
+  "lodging": "Yes",
+  "gender_identity": { "select": "Woman", "other": "" },
+  "roommate_preference": "No Preference"
+}

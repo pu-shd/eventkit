@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Phase 0 hygiene. Runs first and fast: a leak is worth failing before tests.
+  # ---------------------------------------------------------------------------
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: No real institutional email addresses outside examples and themes
+        run: |
+          # `posted/backend/config.py:25` committed seven real Princeton netIDs as
+          # the default admin allow-list. Allow-lists belong in app settings.
+          if grep -rInE '[A-Za-z0-9._%+-]+@princeton\.edu' \
+               --exclude-dir=.git \
+               --exclude-dir=examples \
+               --exclude-dir=themes \
+               --exclude-dir=.venv \
+               . ; then
+            echo "::error::Real @princeton.edu address outside examples/ and themes/."
+            echo "Use example.edu in code, fixtures and tests."
+            exit 1
+          fi
+          echo "OK: no institutional addresses in code."
+
+      - name: No well-known placeholder webhook tokens
+        run: |
+          # These are the committed defaults from the two predecessor repos, so
+          # they are effectively public. They must never reappear as a default.
+          if grep -rInE 'secret_(drupal|nametags)_token' \
+               --exclude-dir=.git --exclude-dir=.venv \
+               --exclude=ci.yml \
+               --exclude=webhook.py \
+               --exclude=test_webhook.py \
+               . ; then
+            echo "::error::Placeholder webhook token found outside the WEAK_TOKENS deny-list."
+            exit 1
+          fi
+          echo "OK: no placeholder tokens."
+
+      - name: No live discount codes
+        run: |
+          # Semi-public by nature (the Twig reaches the browser), but they do not
+          # belong in a public repo. Tiers name an env var instead.
+          if grep -rInE '(YESPUNOSTU26|2026CAARMSGA|NOPUNOPRESENT26|NOPUPOSTPRES26|BANQGUES26|MORGANSTU26|BALTISTU26|BALTIFAC26|FAMFRIENDPRES26)' \
+               --exclude-dir=.git --exclude-dir=.venv \
+               --exclude=ci.yml --exclude=test_cli.py \
+               . ; then
+            echo "::error::A live Eventbrite discount code is committed."
+            exit 1
+          fi
+          echo "OK: no discount codes."
+
+      - name: No bearer tokens in query strings
+        run: |
+          # links-for-speakers.html contained nine live 43-character ?token=
+          # bearer links, one per named speaker.
+          if grep -rInE '[?&]token=[A-Za-z0-9_-]{20,}' \
+               --exclude-dir=.git --exclude-dir=.venv \
+               --exclude=ci.yml --exclude=test_logging.py \
+               . ; then
+            echo "::error::A bearer token appears in a committed URL."
+            exit 1
+          fi
+          echo "OK: no bearer tokens."
+
+      - name: No WAF bypass header
+        run: |
+          if grep -rIn 'wdsoit-bot-bypass' \
+               --exclude-dir=.git --exclude-dir=.venv --exclude=ci.yml . ; then
+            echo "::error::WAF bypass header name is committed."
+            exit 1
+          fi
+          echo "OK: no bypass header."
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+        continue-on-error: true  # formatting is advisory at v0.1
+
+  # ---------------------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The library must work on the oldest supported interpreter and the
+        # newest, since app repos pin independently.
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -e ".[test]"
+      - run: python -m pytest -q --cov=eventkit --cov-report=term-missing --cov-fail-under=85
+
+      - name: The reference profile must validate
+        run: eventkit profile validate examples/caarms-2026/event-profile.yaml
+
+      - name: The reference profile's public projection must carry no addresses
+        run: |
+          # `event.contact_email` is intentionally public and is example.edu in
+          # the sanitized profile; nothing else may contain an address.
+          eventkit profile public examples/caarms-2026/event-profile.yaml \
+            | grep -vE '"contact_email"' \
+            | (! grep -q '@') \
+            && echo "OK: no unexpected addresses in the public payload."
+
+  # ---------------------------------------------------------------------------
+  # The same command an operator runs locally. Catches a broken Dockerfile,
+  # which the per-repo `docker-compose run --rm test` contract depends on.
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target test -t eventkit-test .
+      - run: docker run --rm eventkit-test python -m pytest -q
+
+  # ---------------------------------------------------------------------------
+  packaging:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+
+      - name: Package data must be present in the built wheel
+        run: |
+          # The golden Drupal fixtures ship in the wheel so app repos reuse them.
+          # A missing `artifacts` entry in pyproject.toml is silent otherwise.
+          python - <<'PY'
+          import glob, zipfile, sys
+          wheel = glob.glob("dist/*.whl")[0]
+          names = zipfile.ZipFile(wheel).namelist()
+          required = [
+              "eventkit/testing/fixtures/drupal/registration_flat.json",
+              "eventkit/testing/fixtures/drupal/registration_select_other.json",
+          ]
+          missing = [r for r in required if r not in names]
+          if missing:
+              print("missing from wheel:", missing, file=sys.stderr)
+              sys.exit(1)
+          print("OK: package data present in wheel.")
+          PY
+
+  # ---------------------------------------------------------------------------
+  # Installing with ONLY the base dependencies must work. This is the machine
+  # check behind the import-weight promise: `link-forge` and `nametag-press`
+  # install a subset of extras, and a stray top-level `import fastapi` in a light
+  # module would only fail for them, never here.
+  minimal-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install .
+      - name: Light modules import with no extras installed
+        run: |
+          python - <<'PY'
+          import importlib
+          for module in [
+              "eventkit", "eventkit.errors", "eventkit.identity", "eventkit.logging",
+              "eventkit.drupal", "eventkit.eventprofile", "eventkit.webhook",
+              "eventkit.eventbrite", "eventkit.cli",
+          ]:
+              importlib.import_module(module)
+          print("OK: light modules import on a base install.")
+          PY
+      - name: FastAPI and SQLAlchemy are genuinely absent
+        run: |
+          python - <<'PY'
+          import importlib, sys
+          for pkg in ("fastapi", "sqlalchemy", "httpx"):
+              try:
+                  importlib.import_module(pkg)
+              except ImportError:
+                  continue
+              print(f"{pkg} is installed; this job cannot prove anything", file=sys.stderr)
+              sys.exit(1)
+          print("OK: heavy packages absent, so the imports above prove the contract.")
+          PY

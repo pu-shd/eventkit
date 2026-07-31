@@ -1,0 +1,50 @@
+# `docker-compose run --rm test` — the single test command, identical locally and
+# in CI. Invoked as `docker-compose` (with the hyphen) per the project convention.
+#
+# Note there is no postgres service attached to the default test run. The
+# existing `ticketed` CI job starts a postgres service container and then sets
+# DATABASE_URL=sqlite:///:memory:, so the container is paid for and never used.
+# Postgres here is an explicit profile, enabled only by the matrix job that
+# actually targets it.
+
+services:
+  test:
+    build:
+      context: .
+      target: test
+    environment:
+      # Belt and braces alongside the autouse _no_network fixture.
+      NO_PROXY: "*"
+      PYTHONWARNINGS: "default"
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./examples:/app/examples:ro
+
+  test-postgres:
+    profiles: ["postgres"]
+    build:
+      context: .
+      target: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql+psycopg://eventkit:eventkit@postgres:5432/eventkit"
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./examples:/app/examples:ro
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: eventkit
+      POSTGRES_PASSWORD: eventkit
+      POSTGRES_DB: eventkit
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eventkit"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

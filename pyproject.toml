@@ -1,0 +1,113 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# ---------------------------------------------------------------------------
+# Distribution naming
+#
+# The import name is always `eventkit`. The *distribution* name is
+# `eventkit-core` because the bare `eventkit` name is already taken on PyPI
+# (an unrelated event-driven programming library).
+#
+# OPEN ITEM (blocks v0.2, not v0.1): `eventkit-core` availability on PyPI has
+# NOT been verified — the extraction session had no network access. Verify
+# before the first PyPI upload and prefix all three distributions if taken.
+# At v0.1 consumption is via GitHub codeload tarball, so the name is not yet
+# load-bearing; a tarball install builds whatever this file declares.
+#
+# v0.1 ships ONE distribution containing the core library, the UI kit (as
+# package data) and the Azure toolkit (as package data). The three-way split
+# into eventkit-core / eventkit-ui / eventkit-azure happens at v0.2 alongside
+# PyPI publication, per docs/consuming.md.
+# ---------------------------------------------------------------------------
+
+[project]
+name = "eventkit-core"
+version = "0.1.0"
+description = "Reusable core for the Sherrerd event-management stack: Drupal Webform ingest, identity, event profiles, ticket-vendor reconciliation primitives."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "The Trustees of Princeton University" }]
+keywords = ["drupal", "webform", "eventbrite", "events", "conference"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+# Base dependencies only. The hard constraint is that `eventkit.eventprofile`,
+# `eventkit.identity`, `eventkit.drupal` and `eventkit.ui` import with nothing
+# beyond these three, so `link-forge` and `nametag-press` stay light.
+# tests/unit/test_import_weight.py enforces it.
+dependencies = [
+  "pydantic>=2.7,<3",
+  "PyYAML>=6",
+  "Jinja2>=3.1",
+]
+
+[project.optional-dependencies]
+web      = ["fastapi>=0.111,<1", "python-multipart>=0.0.9"]
+db       = ["SQLAlchemy>=2.0,<3", "alembic>=1.13", "filelock>=3.13"]
+http     = ["httpx>=0.27,<1"]
+resend   = ["resend>=0.8"]
+acs      = ["azure-communication-email>=1.0"]
+postgres = ["psycopg[binary]>=3.1"]
+app      = ["eventkit-core[web,db,http]"]
+test     = [
+  "eventkit-core[app,resend]",
+  "pytest>=8.2",
+  "pytest-asyncio>=0.23",
+  "pytest-cov>=5.0",
+  "respx>=0.21",
+  "freezegun>=1.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/pu-sherrerd/eventkit"
+Documentation = "https://github.com/pu-sherrerd/event-stack"
+Source = "https://github.com/pu-sherrerd/eventkit"
+
+# Exporting the pytest plugin as an entry point is what lets each app's
+# conftest.py be a single line.
+[project.entry-points.pytest11]
+eventkit = "eventkit.testing.plugin"
+
+[project.scripts]
+eventkit = "eventkit.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/eventkit"]
+artifacts = [
+  "src/eventkit/ui/static/**",
+  "src/eventkit/azure/**",
+  "src/eventkit/**/templates/**",
+  "src/eventkit/db/alembic_template/**",
+  "src/eventkit/testing/fixtures/**",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+  "allow_network: opt out of the autouse _no_network fixture",
+]
+
+[tool.coverage.run]
+source = ["eventkit"]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S", "C4"]
+ignore = ["S101"]  # assert is fine in this codebase's tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]  # hardcoded test tokens are the point

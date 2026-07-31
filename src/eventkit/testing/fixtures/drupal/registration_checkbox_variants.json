@@ -1,0 +1,19 @@
+{
+  "_comment": "Every truthiness spelling seen in live Drupal Remote Post bodies, in one payload. student/lodging/presenting_poster are String columns today holding a mix of these, which is why queries read (lodging == 'Yes') | (lodging == 'yes').",
+  "sid": 109,
+  "serial": 20,
+  "uuid": "1b48f2d5-b067-4c94-f25b-3d907e64c80f",
+  "email": "ada@example.edu",
+  "registrant_name": { "first": "Ada", "last": "Lovelace" },
+  "tickets_sold_separately": "1",
+  "student": "Yes",
+  "lodging": "on",
+  "presenting_poster": true,
+  "checked_extra": "checked",
+  "falsy_zero": "0",
+  "falsy_empty": "",
+  "falsy_null": null,
+  "falsy_no": "No",
+  "falsy_off": "off",
+  "falsy_int": 0
+}
