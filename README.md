@@ -105,11 +105,13 @@ stack runs, sanitized. Two rules it demonstrates:
 
 ### Testing
 
-Each app's entire `conftest.py`:
+Each app's `conftest.py` can be **empty**. The `pytest11` entry point registers
+the plugin automatically for anything that has eventkit installed.
 
-```python
-pytest_plugins = ["eventkit.testing.plugin"]
-```
+Do *not* add `pytest_plugins = ["eventkit.testing.plugin"]` — naming it again
+registers the same module under a second name and pytest aborts collection with
+`ValueError: Plugin already registered under a different name`. This repo's own
+`tests/conftest.py` documents it, because it is the obvious thing to reach for.
 
 The highest-value fixture is autouse `_no_network`, which makes remote
 connections raise. `posted`'s suite currently makes real outbound HTTPS requests
@@ -160,8 +162,8 @@ they are not built in v0.1.
 
 MIT. Copyright (c) 2026 The Trustees of Princeton University.
 
-[`ticket-reconciler`]: https://github.com/pu-sherrerd/ticket-reconciler
-[`lodging-planner`]: https://github.com/pu-sherrerd/lodging-planner
-[`nametag-press`]: https://github.com/pu-sherrerd/nametag-press
-[`link-forge`]: https://github.com/pu-sherrerd/link-forge
-[`poster-gallery`]: https://github.com/pu-sherrerd/poster-gallery
+[`ticket-reconciler`]: https://github.com/pu-shd/ticket-reconciler
+[`lodging-planner`]: https://github.com/pu-shd/lodging-planner
+[`nametag-press`]: https://github.com/pu-shd/nametag-press
+[`link-forge`]: https://github.com/pu-shd/link-forge
+[`poster-gallery`]: https://github.com/pu-shd/poster-gallery
