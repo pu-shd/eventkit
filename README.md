@@ -121,6 +121,11 @@ from a developer laptop — because asset mirroring is invoked from the app's
 
 ## Documentation
 
+**[Roadmap](docs/roadmap/)** — the remaining work as a stack of pull requests, plus
+the committed plan and current status. Start at
+[`docs/roadmap/STATUS.md`](docs/roadmap/STATUS.md) if you are picking this up on a
+new machine.
+
 **[Drupal forms → eventkit apps](docs/drupal/)** — how to design the registration
 webform for a new event, build it from the YAML templates, and wire it to a
 deployed set of applications. Covers the element vocabulary and composites,
