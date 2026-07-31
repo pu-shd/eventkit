@@ -1,0 +1,116 @@
+# Registration webform — CORE template
+#
+# The smallest form that every eventkit application can consume. Copy this,
+# change the copy, add the fragments you need from the other files in this
+# directory, and import it (see ../02-templates.md).
+#
+# This is an ELEMENT-ONLY body: it is the value of the `elements:` key in a
+# Drupal webform config object, not the whole object. Import instructions and
+# the config envelope are in ../02-templates.md.
+#
+# Element keys here are the canonical logical names eventkit expects, so
+# `infer_field_map` resolves every one of them with zero warnings. If you rename
+# a key, add an explicit `field_map` entry to your event profile — see
+# ../04-field-map-contract.md.
+#
+# Placeholders to replace:
+#   {{EVENT_NAME}}       e.g. "Example Symposium 2030"
+#   {{CONTACT_EMAIL}}    e.g. "events@example.edu"
+#   {{LOGIN_PATH}}       e.g. "/user/login?destination=/form/registration"
+
+# ---------------------------------------------------------------------------
+# Identity plumbing. These four are not shown to the registrant; they are how
+# eventkit correlates a submission with a person and links back to Drupal.
+# ---------------------------------------------------------------------------
+
+uuid:
+  '#type': value
+  '#title': 'Submission UUID'
+  # THE JOIN KEY. eventkit.identity prefers this over the email address so a
+  # registrant who later corrects their email stays the same person across
+  # every app's database.
+  #
+  # Verify after your first test submission that this arrives as a real UUID
+  # and NOT as the literal string "[webform_submission:uuid]". A misconfigured
+  # token posts its own text, which would give every registrant an identical
+  # person_key and collapse the whole roster onto one row. eventkit rejects
+  # bracketed values and falls back to the email hash, but you want to know.
+  '#default_value': '[webform_submission:uuid]'
+
+sid:
+  '#type': value
+  '#title': 'Submission ID'
+  '#default_value': '[webform_submission:sid]'
+
+serial:
+  '#type': value
+  '#title': 'Serial number'
+  # Human-facing number staff quote at the front desk. Not unique across forms.
+  '#default_value': '[webform_submission:serial]'
+
+user_authentication_check:
+  '#type': hidden
+  '#title': 'UID check'
+  # Empty for anonymous users. Drives every "are you logged in?" condition.
+  '#default_value': '[current-user:uid]'
+  '#prepopulate': true
+
+# ---------------------------------------------------------------------------
+# The registrant
+# ---------------------------------------------------------------------------
+
+registrant_name:
+  '#type': webform_name
+  '#title': 'Name'
+  '#required': true
+  # A composite. eventkit's coerce_name reads first/last sub-keys; if your site
+  # uses a plain textfield instead, it splits on the first space.
+  '#title__access': false
+  '#middle__access': false
+  '#suffix__access': false
+  '#degree__access': false
+
+email:
+  '#type': email
+  '#title': 'Email address'
+  '#required': true
+  # Uniqueness is what stops one person registering twice and appearing as two
+  # people in four databases. Keep it.
+  '#unique': true
+  '#unique_error': 'A registration already exists for this email address. Contact {{CONTACT_EMAIL}} if you need to change your details.'
+
+confirm_email_address:
+  '#type': email_confirm
+  '#title': 'Confirm email address'
+  '#required': true
+
+home_institution_or_organization:
+  '#type': textfield
+  '#title': 'Institution or organization'
+  # Blocks the link spam that open registration forms attract.
+  '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+  '#pattern_error': 'Please enter an institution name, not a web address.'
+
+# ---------------------------------------------------------------------------
+# Role. Drives nametag labels and colours, and reimbursement link eligibility.
+# The option KEYS must match `roles.options[].key` in your event profile.
+# ---------------------------------------------------------------------------
+
+attendee_status:
+  '#type': select
+  '#title': 'I am attending as'
+  '#required': true
+  '#options':
+    Attendee: Attendee
+    Speaker: Speaker
+    Organizer: Organizer
+  '#default_value': Attendee
+
+# ---------------------------------------------------------------------------
+# Submit
+# ---------------------------------------------------------------------------
+
+actions:
+  '#type': webform_actions
+  '#title': 'Submit button(s)'
+  '#submit__label': Register

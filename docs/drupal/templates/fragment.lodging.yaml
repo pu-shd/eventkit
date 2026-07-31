@@ -1,0 +1,77 @@
+# FRAGMENT — lodging
+#
+# Append to registration.core.yaml. Consumed by lodging-planner.
+#
+# These fields are SENSITIVE. `gender_identity` and `identified_roommate` are
+# the most sensitive data the stack holds, and they end up on a drag-and-drop
+# board that several staff can see. Before enabling this fragment:
+#
+#   * restrict who is in lodging-planner's ALLOWED_ADMIN_PRINCIPALS,
+#   * set a retention date (the plan recommends deleting at event + 30 days),
+#   * make sure your privacy notice says the data is used for room assignment.
+#
+# The vocabularies below must match `lodging.vocab.*` in your event profile.
+#
+# Placeholders:
+#   {{ELIGIBILITY_NOTE}}  who lodging is offered to, in plain words
+#   {{HOTEL_NOTE}}        e.g. "Rooms are doubles at the Example Inn."
+
+lodging_intro:
+  '#type': processed_text
+  '#text': '<p>{{HOTEL_NOTE}} {{ELIGIBILITY_NOTE}}</p>'
+  '#format': basic_html
+  # Show this block only to people who are actually eligible. Replace the
+  # condition with your own rule — see ../01-design.md on #states.
+  '#states':
+    visible:
+      ':input[name="lodging"]':
+        value: 'Yes'
+
+lodging:
+  '#type': radios
+  '#title': 'Do you need lodging?'
+  '#options':
+    'Yes': 'Yes, please reserve a room for me'
+    'No': 'No, I will arrange my own'
+  '#required': true
+
+lodging_section:
+  '#type': fieldset
+  '#title': 'Room preferences'
+  # The whole fieldset appears only when lodging is requested. Everything
+  # nested below inherits that visibility.
+  '#states':
+    visible:
+      ':input[name="lodging"]':
+        value: 'Yes'
+
+  gender_identity:
+    '#type': webform_select_other
+    '#title': 'Gender identity'
+    '#description': 'Used only for room assignment.'
+    # A composite: {select: "...", other: "..."}. When select is "_other_",
+    # eventkit's coerce_select_other returns the free-text value instead.
+    '#options':
+      Woman: Woman
+      Man: Man
+      'Non-binary': 'Non-binary'
+      'Prefer not to say': 'Prefer not to say'
+    '#other__option_label': 'Prefer to self-describe'
+
+  roommate_preference:
+    '#type': select
+    '#title': 'Roommate preference'
+    '#options':
+      'No Preference': 'No preference'
+      'Prefer Same Gender': 'Prefer to share with someone of the same gender'
+      'Require Same Gender': 'Require sharing with someone of the same gender'
+      'Single Room Requested': 'Request a single room'
+    '#default_value': 'No Preference'
+
+  identified_roommate:
+    '#type': textfield
+    '#title': 'Requested roommate'
+    '#description': 'Name of another registered attendee. A request is not a guarantee, and it is only honoured if they request you back.'
+    # Matched against the roster by name. lodging-planner normalizes case,
+    # accents, punctuation and "Last, First" ordering, and reports AMBIGUOUS
+    # rather than guessing when two people match.

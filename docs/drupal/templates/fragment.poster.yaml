@@ -1,0 +1,55 @@
+# FRAGMENT — poster presentations
+#
+# Append to registration.core.yaml. Consumed by poster-gallery.
+#
+# IMPORTANT: poster-gallery publishes `poster_title`, `faculty_adviser_name` and
+# `poster_presentation_abstract` on an UNAUTHENTICATED page and in an RSS feed.
+# Say so on the form. Email addresses are never published, but everything in
+# this fragment is.
+#
+# `presenting_poster` is a soft-delete switch: flipping it to No on a later
+# submission hides the presenter from the gallery rather than deleting the row.
+
+presenting_poster:
+  '#type': select
+  '#title': 'Are you presenting a poster?'
+  '#options':
+    'Yes': 'Yes'
+    'No': 'No'
+  '#default_value': 'No'
+  '#required': true
+
+poster_presentation_details:
+  '#type': fieldset
+  '#title': 'Poster details'
+  '#description': 'Your title, adviser and abstract will appear on the public poster directory. Your email address will not.'
+  '#states':
+    visible:
+      ':input[name="presenting_poster"]':
+        value: 'Yes'
+    required:
+      ':input[name="presenting_poster"]':
+        value: 'Yes'
+
+  poster_title:
+    '#type': textfield
+    '#title': 'Poster title'
+    '#maxlength': 255
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter a title, not a web address.'
+
+  faculty_adviser_name:
+    '#type': textfield
+    '#title': 'Faculty adviser'
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter a name, not a web address.'
+
+  poster_presentation_abstract:
+    '#type': textarea
+    '#title': 'Abstract'
+    '#rows': 8
+    # The gallery renders LaTeX with MathJax, so $...$ and \( ... \) survive.
+    # Tell people, or you will get plain-text approximations of formulae.
+    '#description': 'Inline LaTeX is supported: wrap mathematics in $ … $ or \( … \).'
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter an abstract, not a web address.'

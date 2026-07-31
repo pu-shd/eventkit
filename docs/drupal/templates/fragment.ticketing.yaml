@@ -1,0 +1,86 @@
+# FRAGMENT — conditional ticketing
+#
+# Append to registration.core.yaml. Consumed by ticket-reconciler.
+#
+# This is the hardest part of the stack to get right. Read
+# ../05-conditional-ticketing.md before editing it; the summary is:
+#
+#   * `destination_url` computes a TIER SLUG, not a URL.
+#   * The slug is matched against `ticketing.tiers[].key` in the event profile.
+#   * The profile maps a tier to an env var NAME holding the discount code.
+#     The code itself never appears in this file, in the profile, or in git.
+#   * `tickets_sold_separately` is the exemption switch: unchecked means the
+#     person still owes a ticket. Speakers and organizers are exempt.
+#
+# The predecessor form computed a slug and ALSO carried a price table in Twig.
+# Prices drifted from Eventbrite. Keep prices in Eventbrite; keep the slug here.
+#
+# Placeholders:
+#   {{TIER_A_SLUG}} / {{TIER_B_SLUG}}   tier keys from your event profile
+#   {{TICKET_NOTE}}                     one line explaining what happens next
+
+exempt_notice:
+  '#type': processed_text
+  '#text': '<p>No separate ticket purchase is necessary for your role.</p>'
+  '#format': basic_html
+  '#states':
+    visible:
+      - ':input[name="attendee_status"]':
+          value: Speaker
+      - or
+      - ':input[name="attendee_status"]':
+          value: Organizer
+
+tickets_sold_separately:
+  '#type': checkbox
+  '#title': 'I understand I must purchase a ticket separately'
+  '#description': '{{TICKET_NOTE}}'
+  '#required': true
+  # Shown only to people who actually owe a ticket. If it is not shown it is
+  # not submitted, and eventkit treats an absent value as "exempt".
+  '#states':
+    visible:
+      ':input[name="attendee_status"]':
+        value: Attendee
+
+destination_url:
+  '#type': webform_computed_twig
+  '#title': 'Ticket tier'
+  # Stored so ticket-reconciler can read it back; ajax so it recomputes as the
+  # registrant changes their answers.
+  '#store': true
+  '#ajax': true
+  # Allows a group organizer to pin a tier via ?destination_url=SLUG in the URL
+  # they circulate. Anything arriving this way is trusted, so only hand those
+  # links to people you mean to give that price.
+  '#prepopulate': true
+  '#template': |
+    {% if data.destination_url %}
+      {{ data.destination_url }}
+    {% elseif data.attendee_status == 'Speaker' or data.attendee_status == 'Organizer' %}
+      {# Exempt: emit nothing. An empty slug means "no ticket owed". #}
+    {% elseif data.user_authentication_check %}
+      {{TIER_A_SLUG}}
+    {% else %}
+      {{TIER_B_SLUG}}
+    {% endif %}
+
+# ---------------------------------------------------------------------------
+# Two bugs from the predecessor form, documented so they are not recreated.
+#
+# 1. Do NOT nest '#states' inside '#states'. The previous registration form had
+#
+#        actions:
+#          '#states':
+#            '#states':
+#              disabled: ...
+#
+#    Drupal does not recognize the inner key, so the rule never fired and the
+#    submit button was never disabled. It failed silently for the whole event.
+#    Validate with `../tools` or the checklist in ../06-runbook.md.
+#
+# 2. Do NOT use long URLs as radio option KEYS. A companion form used a full
+#    Eventbrite URL as an option key and then wrote a '#states' condition
+#    against a DIFFERENT event id in that URL, so the conditional notice never
+#    displayed. Use short slugs as keys and compute URLs in Twig.
+# ---------------------------------------------------------------------------

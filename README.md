@@ -119,15 +119,37 @@ from a developer laptop — because asset mirroring is invoked from the app's
 
 ---
 
+## Documentation
+
+**[Drupal forms → eventkit apps](docs/drupal/)** — how to design the registration
+webform for a new event, build it from the YAML templates, and wire it to a
+deployed set of applications. Covers the element vocabulary and composites,
+`#states` conditional logic, the two real Drupal import paths, Remote Post
+handler setup, the field-map contract, conditional ticketing, an end-to-end
+runbook, and troubleshooting.
+
+The templates in [`docs/drupal/templates/`](docs/drupal/templates/) are verified
+against this library's own parser by `tests/unit/drupal/test_doc_templates.py`,
+so they cannot drift from the code that reads them.
+
 ## Not yet built
 
 Listed so nobody looks for them: `auth` (Easy Auth `Depends`, allow-list, WS
 tickets), `db` (`Database`, Alembic via `lifespan_migrations`, Azure Files
 pragmas), `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
-`eventbrite.client`, `eventbrite.sync`, `ui`, `cli`, and the `azure` zsh toolkit.
+`eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh toolkit.
 
-`pyproject.toml` declares a `eventkit` console script and `eventkit.cli:main`
-does not exist yet, so **do not install this with `pipx` expecting a working CLI.**
+The CLI **is** built, for the parts that exist:
+
+```sh
+eventkit profile validate event-profile.yaml   # OK  CAARMS 2026  slug=caarms-2026  …
+eventkit profile public event-profile.yaml     # the browser-safe JSON projection
+eventkit profile checkin-keys event-profile.yaml
+eventkit fieldmap check event-profile.yaml     # resolve and print the field map
+```
+
+`eventkit azure`, `db`, `ui`, `mirror` and `import` are declared but report that
+they are not built in v0.1.
 
 ## Licence
 

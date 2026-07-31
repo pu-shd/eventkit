@@ -1,0 +1,26 @@
+# FRAGMENT — swag (t-shirts)
+#
+# Append to registration.core.yaml. Consumed by ticket-reconciler ONLY.
+# nametag-press deliberately has no swag fields: two applications counting
+# shirts independently is how you oversell mediums.
+#
+# The option KEYS must match `swag.options[].key` in your event profile exactly.
+# They are opaque identifiers, not sizes — the human-readable size lives in the
+# profile's `label`, so you can restyle the UI without a data migration.
+#
+# Placeholders:
+#   {{SWAG_DEADLINE}}   e.g. "1 June 2030"
+
+t_shirt_size:
+  '#type': select
+  '#title': 'T-shirt size'
+  '#description': 'Complimentary and subject to availability. Sizes are unisex. Requests after {{SWAG_DEADLINE}} cannot be guaranteed.'
+  '#options':
+    NONE: 'No t-shirt, thanks!'
+    USML: 'Unisex — Small'
+    UMED: 'Unisex — Medium'
+    ULRG: 'Unisex — Large'
+    U1XL: 'Unisex — 1XL'
+    U2XL: 'Unisex — 2XL'
+    U3XL: 'Unisex — 3XL'
+  '#default_value': NONE

@@ -121,6 +121,89 @@ class TestWebformSchema:
         assert schema.is_required("email") is True
 
 
+class TestNestedContainers:
+    """Fieldset children must be discoverable.
+
+    Drupal nests container children in the export but **submission data is
+    flat** — a fieldset is presentational and its children post as top-level
+    keys. Reading only the top level silently loses every nested element.
+
+    The real CAARMS export nests six fields this way: ``faculty_adviser_name``,
+    ``poster_title`` and ``poster_presentation_abstract`` under
+    ``poster_presentation_details``; ``gender_identity``, ``roommate_preference``
+    and ``identified_roommate`` under ``lodging_section``. Before flattening,
+    inference reported "could not infer an element" for all six, so an adopter
+    would have run with the entire lodging and poster halves of their form
+    unmapped — and the failure mode is empty columns, not an error.
+    """
+
+    NESTED = """
+lodging:
+  '#type': radios
+  '#title': 'Need lodging?'
+lodging_section:
+  '#type': fieldset
+  '#title': 'Room preferences'
+  gender_identity:
+    '#type': webform_select_other
+    '#title': 'Gender identity'
+  roommate_preference:
+    '#type': select
+    '#title': 'Roommate preference'
+"""
+
+    def test_nested_children_are_discovered(self):
+        schema = WebformSchema.from_yaml_text(self.NESTED)
+        assert "gender_identity" in schema.elements
+        assert "roommate_preference" in schema.elements
+
+    def test_container_itself_is_still_an_element(self):
+        schema = WebformSchema.from_yaml_text(self.NESTED)
+        assert schema.element_type("lodging_section") == "fieldset"
+
+    def test_nested_element_types_survive_flattening(self):
+        schema = WebformSchema.from_yaml_text(self.NESTED)
+        assert schema.kind_for("gender_identity") == "select_other"
+        assert schema.kind_for("roommate_preference") == "select"
+
+    def test_container_is_recorded(self):
+        schema = WebformSchema.from_yaml_text(self.NESTED)
+        assert schema.container_of("gender_identity") == "lodging_section"
+        assert schema.container_of("lodging") is None
+
+    def test_nested_fields_are_inferable(self):
+        schema = WebformSchema.from_yaml_text(self.NESTED)
+        field_map, _ = schema.infer_field_map(
+            want=["gender_identity", "roommate_preference"]
+        )
+        assert field_map.rule("gender_identity").keys == ("gender_identity",)
+        assert field_map.rule("roommate_preference").keys == ("roommate_preference",)
+
+    def test_deeply_nested_children_are_discovered(self):
+        schema = WebformSchema.from_yaml_text(
+            "outer:\n"
+            "  '#type': fieldset\n"
+            "  middle:\n"
+            "    '#type': container\n"
+            "    leaf:\n"
+            "      '#type': textfield\n"
+        )
+        assert schema.element_type("leaf") == "textfield"
+        assert schema.container_of("leaf") == "middle"
+
+    def test_hash_properties_are_not_treated_as_children(self):
+        """``#states`` and similar are mappings but are not elements."""
+        schema = WebformSchema.from_yaml_text(
+            "email:\n"
+            "  '#type': email\n"
+            "  '#states':\n"
+            "    visible:\n"
+            "      ':input[name=\"x\"]':\n"
+            "        value: 'Yes'\n"
+        )
+        assert set(schema.elements) == {"email"}
+
+
 class TestInference:
     @pytest.fixture
     def schema(self):

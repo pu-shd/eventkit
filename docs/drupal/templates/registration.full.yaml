@@ -1,0 +1,360 @@
+# Registration webform — CORE template
+#
+# The smallest form that every eventkit application can consume. Copy this,
+# change the copy, add the fragments you need from the other files in this
+# directory, and import it (see ../02-templates.md).
+#
+# This is an ELEMENT-ONLY body: it is the value of the `elements:` key in a
+# Drupal webform config object, not the whole object. Import instructions and
+# the config envelope are in ../02-templates.md.
+#
+# Element keys here are the canonical logical names eventkit expects, so
+# `infer_field_map` resolves every one of them with zero warnings. If you rename
+# a key, add an explicit `field_map` entry to your event profile — see
+# ../04-field-map-contract.md.
+#
+# Placeholders to replace:
+#   {{EVENT_NAME}}       e.g. "Example Symposium 2030"
+#   {{CONTACT_EMAIL}}    e.g. "events@example.edu"
+#   {{LOGIN_PATH}}       e.g. "/user/login?destination=/form/registration"
+
+# ---------------------------------------------------------------------------
+# Identity plumbing. These four are not shown to the registrant; they are how
+# eventkit correlates a submission with a person and links back to Drupal.
+# ---------------------------------------------------------------------------
+
+uuid:
+  '#type': value
+  '#title': 'Submission UUID'
+  # THE JOIN KEY. eventkit.identity prefers this over the email address so a
+  # registrant who later corrects their email stays the same person across
+  # every app's database.
+  #
+  # Verify after your first test submission that this arrives as a real UUID
+  # and NOT as the literal string "[webform_submission:uuid]". A misconfigured
+  # token posts its own text, which would give every registrant an identical
+  # person_key and collapse the whole roster onto one row. eventkit rejects
+  # bracketed values and falls back to the email hash, but you want to know.
+  '#default_value': '[webform_submission:uuid]'
+
+sid:
+  '#type': value
+  '#title': 'Submission ID'
+  '#default_value': '[webform_submission:sid]'
+
+serial:
+  '#type': value
+  '#title': 'Serial number'
+  # Human-facing number staff quote at the front desk. Not unique across forms.
+  '#default_value': '[webform_submission:serial]'
+
+user_authentication_check:
+  '#type': hidden
+  '#title': 'UID check'
+  # Empty for anonymous users. Drives every "are you logged in?" condition.
+  '#default_value': '[current-user:uid]'
+  '#prepopulate': true
+
+# ---------------------------------------------------------------------------
+# The registrant
+# ---------------------------------------------------------------------------
+
+registrant_name:
+  '#type': webform_name
+  '#title': 'Name'
+  '#required': true
+  # A composite. eventkit's coerce_name reads first/last sub-keys; if your site
+  # uses a plain textfield instead, it splits on the first space.
+  '#title__access': false
+  '#middle__access': false
+  '#suffix__access': false
+  '#degree__access': false
+
+email:
+  '#type': email
+  '#title': 'Email address'
+  '#required': true
+  # Uniqueness is what stops one person registering twice and appearing as two
+  # people in four databases. Keep it.
+  '#unique': true
+  '#unique_error': 'A registration already exists for this email address. Contact {{CONTACT_EMAIL}} if you need to change your details.'
+
+confirm_email_address:
+  '#type': email_confirm
+  '#title': 'Confirm email address'
+  '#required': true
+
+home_institution_or_organization:
+  '#type': textfield
+  '#title': 'Institution or organization'
+  # Blocks the link spam that open registration forms attract.
+  '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+  '#pattern_error': 'Please enter an institution name, not a web address.'
+
+# ---------------------------------------------------------------------------
+# Role. Drives nametag labels and colours, and reimbursement link eligibility.
+# The option KEYS must match `roles.options[].key` in your event profile.
+# ---------------------------------------------------------------------------
+
+attendee_status:
+  '#type': select
+  '#title': 'I am attending as'
+  '#required': true
+  '#options':
+    Attendee: Attendee
+    Speaker: Speaker
+    Organizer: Organizer
+  '#default_value': Attendee
+
+# ---------------------------------------------------------------------------
+# Submit
+# ---------------------------------------------------------------------------
+
+actions:
+  '#type': webform_actions
+  '#title': 'Submit button(s)'
+  '#submit__label': Register
+# FRAGMENT — swag (t-shirts)
+#
+# Append to registration.core.yaml. Consumed by ticket-reconciler ONLY.
+# nametag-press deliberately has no swag fields: two applications counting
+# shirts independently is how you oversell mediums.
+#
+# The option KEYS must match `swag.options[].key` in your event profile exactly.
+# They are opaque identifiers, not sizes — the human-readable size lives in the
+# profile's `label`, so you can restyle the UI without a data migration.
+#
+# Placeholders:
+#   {{SWAG_DEADLINE}}   e.g. "1 June 2030"
+
+t_shirt_size:
+  '#type': select
+  '#title': 'T-shirt size'
+  '#description': 'Complimentary and subject to availability. Sizes are unisex. Requests after {{SWAG_DEADLINE}} cannot be guaranteed.'
+  '#options':
+    NONE: 'No t-shirt, thanks!'
+    USML: 'Unisex — Small'
+    UMED: 'Unisex — Medium'
+    ULRG: 'Unisex — Large'
+    U1XL: 'Unisex — 1XL'
+    U2XL: 'Unisex — 2XL'
+    U3XL: 'Unisex — 3XL'
+  '#default_value': NONE
+# FRAGMENT — lodging
+#
+# Append to registration.core.yaml. Consumed by lodging-planner.
+#
+# These fields are SENSITIVE. `gender_identity` and `identified_roommate` are
+# the most sensitive data the stack holds, and they end up on a drag-and-drop
+# board that several staff can see. Before enabling this fragment:
+#
+#   * restrict who is in lodging-planner's ALLOWED_ADMIN_PRINCIPALS,
+#   * set a retention date (the plan recommends deleting at event + 30 days),
+#   * make sure your privacy notice says the data is used for room assignment.
+#
+# The vocabularies below must match `lodging.vocab.*` in your event profile.
+#
+# Placeholders:
+#   {{ELIGIBILITY_NOTE}}  who lodging is offered to, in plain words
+#   {{HOTEL_NOTE}}        e.g. "Rooms are doubles at the Example Inn."
+
+lodging_intro:
+  '#type': processed_text
+  '#text': '<p>{{HOTEL_NOTE}} {{ELIGIBILITY_NOTE}}</p>'
+  '#format': basic_html
+  # Show this block only to people who are actually eligible. Replace the
+  # condition with your own rule — see ../01-design.md on #states.
+  '#states':
+    visible:
+      ':input[name="lodging"]':
+        value: 'Yes'
+
+lodging:
+  '#type': radios
+  '#title': 'Do you need lodging?'
+  '#options':
+    'Yes': 'Yes, please reserve a room for me'
+    'No': 'No, I will arrange my own'
+  '#required': true
+
+lodging_section:
+  '#type': fieldset
+  '#title': 'Room preferences'
+  # The whole fieldset appears only when lodging is requested. Everything
+  # nested below inherits that visibility.
+  '#states':
+    visible:
+      ':input[name="lodging"]':
+        value: 'Yes'
+
+  gender_identity:
+    '#type': webform_select_other
+    '#title': 'Gender identity'
+    '#description': 'Used only for room assignment.'
+    # A composite: {select: "...", other: "..."}. When select is "_other_",
+    # eventkit's coerce_select_other returns the free-text value instead.
+    '#options':
+      Woman: Woman
+      Man: Man
+      'Non-binary': 'Non-binary'
+      'Prefer not to say': 'Prefer not to say'
+    '#other__option_label': 'Prefer to self-describe'
+
+  roommate_preference:
+    '#type': select
+    '#title': 'Roommate preference'
+    '#options':
+      'No Preference': 'No preference'
+      'Prefer Same Gender': 'Prefer to share with someone of the same gender'
+      'Require Same Gender': 'Require sharing with someone of the same gender'
+      'Single Room Requested': 'Request a single room'
+    '#default_value': 'No Preference'
+
+  identified_roommate:
+    '#type': textfield
+    '#title': 'Requested roommate'
+    '#description': 'Name of another registered attendee. A request is not a guarantee, and it is only honoured if they request you back.'
+    # Matched against the roster by name. lodging-planner normalizes case,
+    # accents, punctuation and "Last, First" ordering, and reports AMBIGUOUS
+    # rather than guessing when two people match.
+# FRAGMENT — poster presentations
+#
+# Append to registration.core.yaml. Consumed by poster-gallery.
+#
+# IMPORTANT: poster-gallery publishes `poster_title`, `faculty_adviser_name` and
+# `poster_presentation_abstract` on an UNAUTHENTICATED page and in an RSS feed.
+# Say so on the form. Email addresses are never published, but everything in
+# this fragment is.
+#
+# `presenting_poster` is a soft-delete switch: flipping it to No on a later
+# submission hides the presenter from the gallery rather than deleting the row.
+
+presenting_poster:
+  '#type': select
+  '#title': 'Are you presenting a poster?'
+  '#options':
+    'Yes': 'Yes'
+    'No': 'No'
+  '#default_value': 'No'
+  '#required': true
+
+poster_presentation_details:
+  '#type': fieldset
+  '#title': 'Poster details'
+  '#description': 'Your title, adviser and abstract will appear on the public poster directory. Your email address will not.'
+  '#states':
+    visible:
+      ':input[name="presenting_poster"]':
+        value: 'Yes'
+    required:
+      ':input[name="presenting_poster"]':
+        value: 'Yes'
+
+  poster_title:
+    '#type': textfield
+    '#title': 'Poster title'
+    '#maxlength': 255
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter a title, not a web address.'
+
+  faculty_adviser_name:
+    '#type': textfield
+    '#title': 'Faculty adviser'
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter a name, not a web address.'
+
+  poster_presentation_abstract:
+    '#type': textarea
+    '#title': 'Abstract'
+    '#rows': 8
+    # The gallery renders LaTeX with MathJax, so $...$ and \( ... \) survive.
+    # Tell people, or you will get plain-text approximations of formulae.
+    '#description': 'Inline LaTeX is supported: wrap mathematics in $ … $ or \( … \).'
+    '#pattern': '^((?!http:\/\/|https:\/\/|www\.|<a\b).)*$'
+    '#pattern_error': 'Please enter an abstract, not a web address.'
+# FRAGMENT — conditional ticketing
+#
+# Append to registration.core.yaml. Consumed by ticket-reconciler.
+#
+# This is the hardest part of the stack to get right. Read
+# ../05-conditional-ticketing.md before editing it; the summary is:
+#
+#   * `destination_url` computes a TIER SLUG, not a URL.
+#   * The slug is matched against `ticketing.tiers[].key` in the event profile.
+#   * The profile maps a tier to an env var NAME holding the discount code.
+#     The code itself never appears in this file, in the profile, or in git.
+#   * `tickets_sold_separately` is the exemption switch: unchecked means the
+#     person still owes a ticket. Speakers and organizers are exempt.
+#
+# The predecessor form computed a slug and ALSO carried a price table in Twig.
+# Prices drifted from Eventbrite. Keep prices in Eventbrite; keep the slug here.
+#
+# Placeholders:
+#   {{TIER_A_SLUG}} / {{TIER_B_SLUG}}   tier keys from your event profile
+#   {{TICKET_NOTE}}                     one line explaining what happens next
+
+exempt_notice:
+  '#type': processed_text
+  '#text': '<p>No separate ticket purchase is necessary for your role.</p>'
+  '#format': basic_html
+  '#states':
+    visible:
+      - ':input[name="attendee_status"]':
+          value: Speaker
+      - or
+      - ':input[name="attendee_status"]':
+          value: Organizer
+
+tickets_sold_separately:
+  '#type': checkbox
+  '#title': 'I understand I must purchase a ticket separately'
+  '#description': '{{TICKET_NOTE}}'
+  '#required': true
+  # Shown only to people who actually owe a ticket. If it is not shown it is
+  # not submitted, and eventkit treats an absent value as "exempt".
+  '#states':
+    visible:
+      ':input[name="attendee_status"]':
+        value: Attendee
+
+destination_url:
+  '#type': webform_computed_twig
+  '#title': 'Ticket tier'
+  # Stored so ticket-reconciler can read it back; ajax so it recomputes as the
+  # registrant changes their answers.
+  '#store': true
+  '#ajax': true
+  # Allows a group organizer to pin a tier via ?destination_url=SLUG in the URL
+  # they circulate. Anything arriving this way is trusted, so only hand those
+  # links to people you mean to give that price.
+  '#prepopulate': true
+  '#template': |
+    {% if data.destination_url %}
+      {{ data.destination_url }}
+    {% elseif data.attendee_status == 'Speaker' or data.attendee_status == 'Organizer' %}
+      {# Exempt: emit nothing. An empty slug means "no ticket owed". #}
+    {% elseif data.user_authentication_check %}
+      {{TIER_A_SLUG}}
+    {% else %}
+      {{TIER_B_SLUG}}
+    {% endif %}
+
+# ---------------------------------------------------------------------------
+# Two bugs from the predecessor form, documented so they are not recreated.
+#
+# 1. Do NOT nest '#states' inside '#states'. The previous registration form had
+#
+#        actions:
+#          '#states':
+#            '#states':
+#              disabled: ...
+#
+#    Drupal does not recognize the inner key, so the rule never fired and the
+#    submit button was never disabled. It failed silently for the whole event.
+#    Validate with `../tools` or the checklist in ../06-runbook.md.
+#
+# 2. Do NOT use long URLs as radio option KEYS. A companion form used a full
+#    Eventbrite URL as an option key and then wrote a '#states' condition
+#    against a DIFFERENT event id in that URL, so the conditional notice never
+#    displayed. Use short slugs as keys and compute URLs in Twig.
+# ---------------------------------------------------------------------------

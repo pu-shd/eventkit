@@ -138,6 +138,52 @@ class FieldMap(BaseModel):
         return cls(fields={name: FieldRule(key=key) for name, key in pairs.items()})
 
 
+def _flatten_elements(
+    raw: Mapping[str, Any],
+    *,
+    parent: str | None = None,
+    out: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Flatten a Drupal element tree into ``{element_key: properties}``.
+
+    Container elements — ``fieldset``, ``details``, ``container``, ``webform_flexbox``
+    — nest their children in the YAML export, but **submission data is flat**: a
+    fieldset is presentational and its children post as top-level keys. So the
+    schema has to be read flat to match the payloads it is used to interpret.
+
+    This is not hypothetical. The CAARMS registration export nests
+    ``faculty_adviser_name``, ``poster_title`` and ``poster_presentation_abstract``
+    under a ``poster_presentation_details`` fieldset, and ``gender_identity``,
+    ``roommate_preference`` and ``identified_roommate`` under ``lodging_section``.
+    Reading only the top level silently loses all six — inference reports "could
+    not infer an element" for each, and an adopter who trusted it would run with
+    the entire lodging and poster halves of their form unmapped.
+
+    A nested key wins over an outer one of the same name, matching Drupal, which
+    rejects duplicate element keys anywhere in a form. Each flattened element
+    records its container in ``#eventkit_parent`` so callers can report location.
+    """
+    if out is None:
+        out = {}
+    for key, value in raw.items():
+        if not isinstance(value, dict):
+            continue
+        name = str(key)
+        children = {
+            k: v
+            for k, v in value.items()
+            if isinstance(k, str) and not k.startswith("#") and isinstance(v, dict)
+        }
+        if WebformSchema._is_element(value) or not children:
+            properties = {k: v for k, v in value.items() if k not in children}
+            if parent is not None:
+                properties["#eventkit_parent"] = parent
+            out[name] = properties
+        if children:
+            _flatten_elements(children, parent=name, out=out)
+    return out
+
+
 class WebformSchema(BaseModel):
     """A parsed Drupal webform element definition.
 
@@ -151,6 +197,13 @@ class WebformSchema(BaseModel):
 
     elements: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
+    @staticmethod
+    def _is_element(value: Any) -> bool:
+        """A mapping is an element if it carries at least one ``#property``."""
+        return isinstance(value, dict) and any(
+            isinstance(k, str) and k.startswith("#") for k in value
+        )
+
     @classmethod
     def from_yaml_text(cls, text: str) -> WebformSchema:
         raw = yaml.safe_load(text) or {}
@@ -162,15 +215,16 @@ class WebformSchema(BaseModel):
             if isinstance(inner, str):  # Drupal stores elements as a YAML string
                 inner = yaml.safe_load(inner) or {}
             raw = inner
-        elements = {
-            str(key): value for key, value in raw.items() if isinstance(value, dict)
-        }
-        return cls(elements=elements)
+        return cls(elements=_flatten_elements(raw))
 
     @classmethod
     def from_path(cls, path: str | Path) -> WebformSchema:
         resolved = Path(path)
         return cls.from_yaml_text(resolved.read_text(encoding="utf-8"))
+
+    def container_of(self, key: str) -> str | None:
+        """The container element a key was nested under, if any."""
+        return (self.elements.get(key) or {}).get("#eventkit_parent")
 
     def element_type(self, key: str) -> str | None:
         element = self.elements.get(key)
