@@ -43,11 +43,18 @@ jobs:
         run: |
           # These are the committed defaults from the two predecessor repos, so
           # they are effectively public. They must never reappear as a default.
+          #
+          # Markdown is excluded: prose has to be able to name a forbidden value
+          # in order to tell an adopter that it is forbidden. Every other file
+          # type is still checked, including the YAML templates under docs/,
+          # because those become real configuration the moment someone imports
+          # one.
           if grep -rInE 'secret_(drupal|nametags)_token' \
                --exclude-dir=.git --exclude-dir=.venv \
                --exclude=ci.yml \
                --exclude=webhook.py \
                --exclude=test_webhook.py \
+               --exclude='*.md' \
                . ; then
             echo "::error::Placeholder webhook token found outside the WEAK_TOKENS deny-list."
             exit 1
