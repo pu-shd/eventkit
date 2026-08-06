@@ -61,6 +61,19 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   and — when constructed with a `Database` — refuses a payload whose
   `alembic_revision` differs from the live schema unless `?force=1`, and
   snapshots a file-backed SQLite database before restoring.
+- **`eventkit.realtime`** — polling replaces the module-global socket list in
+  `ticketed/backend/main.py:713-772` as the default realtime mechanism.
+  `ChangeLogMixin` gives an app an append-only, strictly-increasing `id`
+  column that doubles as the poll cursor; `record_change()`/`poll_changes()`
+  are the pure DB-only halves, and `make_changes_router()` wires
+  `GET /api/changes?since=<cursor>&limit=`. A page's returned `cursor` is the
+  last row *in that page*, not the log's current max, so a client draining a
+  large backlog gets every row rather than jumping straight to the end.
+  WebSocket push (`ChangeBroadcaster`, `make_changes_ws_route()`, riding on
+  `eventkit.auth`'s WS tickets) is opt-in and instance-local — polling stays
+  the cross-instance source of truth — and a subscriber whose queue is full
+  is dropped without affecting any other subscriber or connection, unlike the
+  send errors the old socket list silently swallowed.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.
@@ -116,5 +129,6 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
-  `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` toolkit.
+- Not built: `notify`, `importer`, `mirror`, `admin`, `eventbrite.client`,
+  `eventbrite.sync`, `ui`, and the `azure` toolkit. (This line lagged reality
+  for `backup`, already built in the previous release; corrected here.)
