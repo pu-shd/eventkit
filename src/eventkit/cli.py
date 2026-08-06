@@ -29,7 +29,6 @@ NOT_YET_BUILT = {
     "azure": "the zsh bootstrap toolkit (deploy/resume/teardown/doctor/gate)",
     "ui": "asset vendoring (vendor/vendor-theme)",
     "mirror": "build-time Drupal asset mirroring",
-    "import": "the generalized bulk importer",
 }
 
 

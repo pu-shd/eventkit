@@ -108,6 +108,25 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   the predecessor never alerted on that. Adds the `eventbrite_mock` fixture
   (`EventbriteMock`, `respx`-backed: `.add_attendees()`/`.set_pages()`/
   `.fail_with()`) to `eventkit.testing.plugin`.
+- **`eventkit.importer`** — generalizes
+  `posted/backend/import_existing.py:14-77`, which only reads a `.tar.gz`/
+  directory/single-JSON-file export, hardcodes `Presenter` and its own copy of
+  parsing, and commits or does nothing. `iter_records()` adds `.jsonl` and
+  `.csv` to the shapes it reads; `run_import(parse, upsert, session_factory)`
+  takes `parse`/`upsert` as callables instead of importing an app's models, so
+  the same `eventkit.drupal.parse_submission` call the webhook route makes is
+  what runs here too. Never raises for a single bad record — it becomes
+  `ImportOutcome.INVALID` plus an `(index, message)` entry in
+  `ImportReport.errors`, and the run continues; only an unreadable source
+  (missing path, corrupt archive, an unsupported JSON root, a failing
+  `session_factory`) is fatal (`ImportReport.exit_code() == 2`). `--dry-run` is
+  the safety feature the predecessor never had: every record still runs
+  through `parse`/`accept`/`upsert`, but the session is rolled back instead of
+  committed. `add_import_arguments()` gives every app's own
+  `python -m <app>.cli import <path>` the same `--dry-run`/`--limit`/
+  `--fail-fast`/`--quiet` flags. There is no generic top-level
+  `eventkit import` verb — see the module docstring for why that is
+  intentional, not a gap.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.
@@ -168,9 +187,13 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `importer`, `mirror`, `admin`, `ui`, and the `azure` toolkit.
+- Not built: `mirror`, `admin`, `ui`, and the `azure` toolkit.
 - `eventkit.eventbrite.sync` does not fire `pending_payment`/
   `exempt_registration` — those trigger at registrant-ingestion time
   (`tickets_sold_separately`, per `eventprofile.models.Ticketing.is_exempt`),
-  not from the Eventbrite sync loop. `importer`/`admin`, whichever ends up
-  owning registrant ingestion, should wire them up.
+  not from the Eventbrite sync loop. `eventkit.importer.run_import`'s
+  `upsert` callback is where a real app fires them for its bulk backfill (it
+  already gets a `Session` and the parsed submission's fields; the app's
+  webhook route is the equivalent hook for a live registration) —
+  `eventkit.importer` intentionally does not invent a second `ports`/`emit`
+  protocol to do this for the app, since `upsert` already is that seam.

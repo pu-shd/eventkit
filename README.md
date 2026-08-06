@@ -34,6 +34,7 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.notify` | a hardcoded Resend `if/elif` chain | `Notifier`/`NotifyPolicy`/`Renderer`, `LogTransport` default (never blocks a deploy), `SmtpTransport` recommended real transport, `ResendTransport`/`AcsTransport` behind extras — every blocking SDK call wrapped in `anyio.to_thread`. Five shipped templates, adopter/profile/default `ChoiceLoader` precedence |
 | `eventkit.eventbrite.client` | a per-call `httpx.AsyncClient()` with no injectable transport | `EventbriteClient.fetch_attendees()`/`iter_attendees()`, a `transport=` seam for `respx`, a `max_pages` runaway guard; `EventbriteMock` + the `eventbrite_mock` fixture drive it in tests with zero network |
 | `eventkit.eventbrite.sync` | a 190-line function mixing HTTP paging, aggregation, writes and email | `run_sync(client, ports)` against a `SyncPorts` protocol — testable with a fake `ports` and zero database; `SqlAlchemySyncPorts` is the batteries-included impl. Fires `unmatched_payment`/`completed_payment` (unchanged from the predecessor) and, new, `sync_failed` when a sync attempt fails |
+| `eventkit.importer` | a script hardcoding one model and one parser, commit-or-nothing | `iter_records()` reads `.tar.gz`/`.tgz`/a directory/`.json`/`.jsonl`/`.csv`; `run_import(parse, upsert, session_factory)` never raises for a bad record (`ImportOutcome.INVALID` + an error, not a crash) and adds the missing `--dry-run`. `add_import_arguments()` gives every app's own importer CLI the same flags |
 
 ### The two contracts worth reading before you change anything
 
@@ -148,8 +149,8 @@ so they cannot drift from the code that reads them.
 
 ## Not yet built
 
-Listed so nobody looks for them: `importer`, `mirror`,
-`admin`, `ui`, and the `azure` zsh toolkit.
+Listed so nobody looks for them: `mirror`, `admin`, `ui`, and the `azure` zsh
+toolkit.
 
 The CLI **is** built, for the parts that exist:
 
@@ -163,8 +164,11 @@ eventkit db upgrade --url sqlite:///./app.db --migrations-dir migrations
 eventkit db current --url sqlite:///./app.db
 ```
 
-`eventkit azure`, `ui`, `mirror` and `import` are declared but report that they
-are not built in v0.1.
+`eventkit azure`, `ui` and `mirror` are declared but report that they are not
+built in v0.1. There is no `eventkit import` verb, built or otherwise: unlike
+those three, importing needs a `Session` and an app-specific `parse`/`upsert`,
+so it can never be a generic top-level command — see `eventkit.importer`'s
+`add_import_arguments()` for the per-app equivalent.
 
 ## Licence
 
