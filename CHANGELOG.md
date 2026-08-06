@@ -49,6 +49,18 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   on a socket handshake. Replaces `posted`'s 18 imperative
   `is_admin_authorized(request)` call sites and ~90 lines of inline
   access-denied HTML in `ticketed/backend/main.py`.
+- **`eventkit.backup`** — `dump()`/`restore()` driven entirely by
+  `sqlalchemy.inspect(model).columns`, replacing the ~55-line hand-written
+  field list each of `ticketed`/`posted` carries per table. `restore()`
+  validates the whole payload — manifest compatibility, declared-table
+  membership, every row's columns — before issuing a single `DELETE`, so a
+  malformed row three tables in cannot leave the database half-wiped.
+  `make_backup_router()` wires `GET {prefix}/db-backup` and
+  `POST {prefix}/db-restore(/validate)`: `enable_restore` defaults to a
+  callable returning `False`, restore requires an exact confirmation phrase,
+  and — when constructed with a `Database` — refuses a payload whose
+  `alembic_revision` differs from the live schema unless `?force=1`, and
+  snapshots a file-backed SQLite database before restoring.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.

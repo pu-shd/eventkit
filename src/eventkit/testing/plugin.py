@@ -431,8 +431,16 @@ def as_anonymous(make_client: Callable[..., Any]) -> Callable[..., Any]:
     return _make
 
 
-# NOTE: the `make_database`, `db_session`, `mail_outbox` and `eventbrite_mock`
-# fixtures land with the `db`, `notify` and `eventbrite.client` modules
-# respectively. They are deliberately absent rather than stubbed: a fixture
-# that exists but does not work is worse than one that is missing, because the
-# failure surfaces inside a test rather than at collection.
+# NOTE: `make_database`/`db_session` are still absent even though `eventkit.db`
+# landed in a prior iteration — PLAN.md SS E.1's sketch (`db_session(make_database)`,
+# no `Base` argument) does not by itself say which app's tables `db_session`
+# should create, and guessing produces a fixture that is either schema-less
+# (breaks on first real query) or silently coupled to one app's `Base`. Neither
+# `eventkit.backup`'s tests nor any other module built so far needed them: each
+# builds its own throwaway `Base`/`Database` inline instead. Add them for real
+# once an app's `create_app()` factory exists to observe the convention against
+# — `phase1:reference-app` is that first app, per DEC-002. `mail_outbox` and
+# `eventbrite_mock` remain deliberately absent too, landing with `notify` and
+# `eventbrite.client` respectively: a fixture that exists but does not work is
+# worse than one that is missing, because the failure surfaces inside a test
+# rather than at collection.

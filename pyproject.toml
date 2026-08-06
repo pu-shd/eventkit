@@ -111,10 +111,11 @@ select = ["E", "F", "I", "UP", "B", "S", "C4"]
 ignore = ["S101"]  # assert is fine in this codebase's tests
 
 [tool.ruff.lint.flake8-bugbear]
-# `Depends(...)` in a signature default is the whole point of FastAPI's DI —
-# it is evaluated once at route registration, not per request, so B008's
-# "mutable default" concern does not apply.
-extend-immutable-calls = ["fastapi.Depends"]
+# `Depends(...)`/`File(...)`/`Form(...)`/`Query(...)` in a signature default are
+# the whole point of FastAPI's DI — each is evaluated once at route
+# registration, not per request, so B008's "mutable default" concern does not
+# apply.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"]  # hardcoded test tokens are the point
