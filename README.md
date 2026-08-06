@@ -31,6 +31,7 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.auth` | 18 imperative `is_admin_authorized()` call sites | `EasyAuth` as a `Depends`, not a function call — allow-list, dev bypass refused on Azure, themed access-denied page, HMAC WebSocket tickets |
 | `eventkit.backup` | 2 hand-written 55-line field lists | `dump()`/`restore()` driven by `sqlalchemy.inspect(model).columns`, `make_backup_router()` (`GET db-backup`, `POST db-restore(/validate)`), whole-payload validation before the first `DELETE`, restore disabled by default |
 | `eventkit.realtime` | a module-global socket list | Polling-first: `ChangeLogMixin` + `record_change()`/`poll_changes()`, `make_changes_router()` (`GET /api/changes?since=<cursor>`). WebSocket push (`ChangeBroadcaster`, `make_changes_ws_route()`) is opt-in and instance-local; a full or dead subscriber is dropped without affecting any other connection |
+| `eventkit.notify` | a hardcoded Resend `if/elif` chain | `Notifier`/`NotifyPolicy`/`Renderer`, `LogTransport` default (never blocks a deploy), `SmtpTransport` recommended real transport, `ResendTransport`/`AcsTransport` behind extras — every blocking SDK call wrapped in `anyio.to_thread`. Five shipped templates, adopter/profile/default `ChoiceLoader` precedence |
 
 ### The two contracts worth reading before you change anything
 
@@ -145,7 +146,7 @@ so they cannot drift from the code that reads them.
 
 ## Not yet built
 
-Listed so nobody looks for them: `notify`, `importer`, `mirror`,
+Listed so nobody looks for them: `importer`, `mirror`,
 `admin`, `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh
 toolkit.
 

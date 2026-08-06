@@ -185,6 +185,8 @@ jobs:
               "eventkit/db/alembic_template/script.py.mako",
               "eventkit/db/alembic.ini.template",
               "eventkit/auth/templates/access_denied.html.j2",
+              "eventkit/notify/templates/completed_payment.html.j2",
+              "eventkit/notify/templates/completed_payment.subject.txt.j2",
           ]
           missing = [r for r in required if r not in names]
           if missing:

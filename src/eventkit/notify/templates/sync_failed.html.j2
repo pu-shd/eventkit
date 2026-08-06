@@ -1,0 +1,11 @@
+<h2>Eventbrite sync failed</h2>
+<p>The scheduled Eventbrite ticket sync did not complete successfully.</p>
+<ul>
+  {% if event_slug %}<li><strong>Event:</strong> {{ event_slug }}</li>{% endif %}
+  {% if reason %}<li><strong>Reason:</strong> {{ reason }}</li>{% endif %}
+  {% if attempted_at %}<li><strong>Attempted at:</strong> {{ attempted_at }}</li>{% endif %}
+</ul>
+<p>
+  Ticket data may be stale until the next successful sync. Check the
+  dashboard's sync status, and the application logs for the underlying error.
+</p>

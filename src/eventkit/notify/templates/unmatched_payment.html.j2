@@ -1,0 +1,16 @@
+<h2>Unmatched ticket purchase</h2>
+<p>
+  An attendee has purchased a ticket, but the purchase does not match any
+  current registration record — they may have registered with a different
+  name or email, or not completed the registration form at all.
+</p>
+<ul>
+  <li><strong>Email:</strong> {{ email }}</li>
+  {% if full_name %}<li><strong>Name:</strong> {{ full_name }}</li>{% endif %}
+  {% if order_id %}<li><strong>Order ID:</strong> {{ order_id }}</li>{% endif %}
+</ul>
+<p>
+  <em>Action required:</em> open the dashboard and check the unmatched
+  section to manually link this payment to a registration record, or
+  contact the attendee if they have not registered yet.
+</p>

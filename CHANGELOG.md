@@ -74,6 +74,22 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   the cross-instance source of truth — and a subscriber whose queue is full
   is dropped without affecting any other subscriber or connection, unlike the
   send errors the old socket list silently swallowed.
+- **`eventkit.notify`** — replaces the hardcoded `if/elif` chain of f-string
+  HTML in `ticketed/backend/notifications.py`, wired to Resend with the sender
+  name `"Drupal Reconciler"` baked in regardless of event. `LogTransport` is
+  the default so a missing credential can never block a deploy;
+  `SmtpTransport` (stdlib `smtplib`) is the recommended real transport over
+  `ResendTransport`/`AcsTransport` (extras `[resend]`/`[acs]`) since every
+  university already has a relay. Every blocking SDK call — including the
+  predecessor's `resend.Emails.send` called directly from an `async def` — now
+  runs off the event loop via `anyio.to_thread`. `Renderer` loads templates
+  through a `ChoiceLoader` (adopter directory, then event-profile directory,
+  then eventkit's shipped defaults), autoescaping the HTML body but not the
+  subject or plaintext part. `NotifyPolicy` gates per event and recipient,
+  empty `enabled` sends nothing. Five shipped templates — `unmatched_payment`,
+  `completed_payment`, `pending_payment`, `exempt_registration`, `sync_failed`
+  — extracted from `notifications.py:43-96` and de-CAARMSified. Adds the
+  `mail_outbox` fixture (a `MemoryTransport`) to `eventkit.testing.plugin`.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.
@@ -129,6 +145,5 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `notify`, `importer`, `mirror`, `admin`, `eventbrite.client`,
-  `eventbrite.sync`, `ui`, and the `azure` toolkit. (This line lagged reality
-  for `backup`, already built in the previous release; corrected here.)
+- Not built: `importer`, `mirror`, `admin`, `eventbrite.client`,
+  `eventbrite.sync`, `ui`, and the `azure` toolkit.

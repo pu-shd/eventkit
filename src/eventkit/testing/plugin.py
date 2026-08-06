@@ -439,8 +439,27 @@ def as_anonymous(make_client: Callable[..., Any]) -> Callable[..., Any]:
 # `eventkit.backup`'s tests nor any other module built so far needed them: each
 # builds its own throwaway `Base`/`Database` inline instead. Add them for real
 # once an app's `create_app()` factory exists to observe the convention against
-# — `phase1:reference-app` is that first app, per DEC-002. `mail_outbox` and
-# `eventbrite_mock` remain deliberately absent too, landing with `notify` and
-# `eventbrite.client` respectively: a fixture that exists but does not work is
-# worse than one that is missing, because the failure surfaces inside a test
-# rather than at collection.
+# — `phase1:reference-app` is that first app, per DEC-002. `eventbrite_mock`
+# remains deliberately absent, landing with `eventbrite.client`: a fixture that
+# exists but does not work is worse than one that is missing, because the
+# failure surfaces inside a test rather than at collection.
+
+
+# --------------------------------------------------------------------------
+# Notify
+# --------------------------------------------------------------------------
+@pytest.fixture
+def mail_outbox():
+    """A :class:`~eventkit.notify.MemoryTransport` — its ``.outbox`` list is
+    every :class:`~eventkit.notify.Message` sent through it during the test.
+
+    Construct a :class:`~eventkit.notify.Notifier` with this as its transport
+    to assert on outbound notifications without touching SMTP, Resend or ACS::
+
+        notifier = Notifier(mail_outbox, renderer, policy, from_email="a@example.edu")
+        await notifier.notify("completed_payment", {"email": "ada@example.edu"})
+        assert mail_outbox.outbox[0].to == ["events@example.edu"]
+    """
+    from ..notify import MemoryTransport
+
+    return MemoryTransport()
