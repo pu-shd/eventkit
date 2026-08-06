@@ -10,6 +10,7 @@ Currently useful, and used by CI:
     eventkit profile public   [PATH]     the exact JSON served at /api/event-profile
     eventkit profile checkin-keys [PATH] the legacy -> ISO check-in key mapping
     eventkit fieldmap check   [PATH]     resolve a field map and report unmapped risk
+    eventkit db init/upgrade/stamp/current   see `eventkit db --help`
     eventkit version
 """
 
@@ -26,7 +27,6 @@ from . import __version__
 #: message tells an operator the truth rather than "invalid choice".
 NOT_YET_BUILT = {
     "azure": "the zsh bootstrap toolkit (deploy/resume/teardown/doctor/gate)",
-    "db": "Alembic wiring (init/upgrade/stamp/current)",
     "ui": "asset vendoring (vendor/vendor-theme)",
     "mirror": "build-time Drupal asset mirroring",
     "import": "the generalized bulk importer",
@@ -111,6 +111,67 @@ def _cmd_fieldmap_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_db_init(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .db.migrate import MigrationError, init_migrations
+
+    try:
+        init_migrations(Path(args.app_dir), package=args.package)
+    except MigrationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"OK  migrations/ and alembic.ini written under {args.app_dir}")
+    return 0
+
+
+def _cmd_db_upgrade(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .db import AZURE_FILES_PRAGMAS, Database
+    from .db.migrate import MigrationError, upgrade_to_head
+
+    pragmas = AZURE_FILES_PRAGMAS if args.azure_files_pragmas else None
+    db = Database(args.url, sqlite_pragmas=pragmas)
+    try:
+        revision = upgrade_to_head(
+            db,
+            migrations_dir=Path(args.migrations_dir),
+            lock_timeout_s=args.lock_timeout,
+            backup_first=not args.no_backup,
+        )
+    except MigrationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"OK  now at revision {revision or '(base)'}")
+    return 0
+
+
+def _cmd_db_stamp(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .db import Database
+    from .db.migrate import MigrationError, stamp
+
+    db = Database(args.url)
+    try:
+        stamp(db, args.revision, migrations_dir=Path(args.migrations_dir))
+    except MigrationError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"OK  stamped at {args.revision}")
+    return 0
+
+
+def _cmd_db_current(args: argparse.Namespace) -> int:
+    from .db import Database
+    from .db.migrate import current_revision
+
+    db = Database(args.url)
+    print(current_revision(db) or "(base)")
+    return 0
+
+
 def _cmd_not_built(args: argparse.Namespace) -> int:
     what = NOT_YET_BUILT[args.command]
     print(
@@ -159,6 +220,42 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("path", nargs="?", default=None)
     check.add_argument("--want", nargs="*", default=None, metavar="LOGICAL_FIELD")
     check.set_defaults(func=_cmd_fieldmap_check)
+
+    db = sub.add_parser("db", help="Alembic migration operations")
+    db_sub = db.add_subparsers(dest="subcommand", required=True)
+
+    db_init = db_sub.add_parser("init", help="scaffold migrations/ and alembic.ini")
+    db_init.add_argument("--app-dir", default=".", help="application root (default: cwd)")
+    db_init.add_argument(
+        "--package", required=True, help="app package exposing a top-level target_metadata"
+    )
+    db_init.set_defaults(func=_cmd_db_init)
+
+    db_upgrade = db_sub.add_parser("upgrade", help="upgrade a database to the migrations head")
+    db_upgrade.add_argument("--url", required=True, help="SQLAlchemy database URL")
+    db_upgrade.add_argument("--migrations-dir", required=True)
+    db_upgrade.add_argument(
+        "--azure-files-pragmas",
+        action="store_true",
+        help="apply AZURE_FILES_PRAGMAS (TRUNCATE journal, FULL sync) for an SMB-mounted database",
+    )
+    db_upgrade.add_argument("--lock-timeout", type=int, default=60, dest="lock_timeout")
+    db_upgrade.add_argument(
+        "--no-backup", action="store_true", help="skip the pre-migration SQLite file snapshot"
+    )
+    db_upgrade.set_defaults(func=_cmd_db_upgrade)
+
+    db_stamp = db_sub.add_parser(
+        "stamp", help="mark a database at a revision without running any migration"
+    )
+    db_stamp.add_argument("--url", required=True)
+    db_stamp.add_argument("--migrations-dir", required=True)
+    db_stamp.add_argument("revision")
+    db_stamp.set_defaults(func=_cmd_db_stamp)
+
+    db_current = db_sub.add_parser("current", help="print the database's current revision")
+    db_current.add_argument("--url", required=True)
+    db_current.set_defaults(func=_cmd_db_current)
 
     for verb, description in NOT_YET_BUILT.items():
         placeholder = sub.add_parser(verb, help=f"(not built in v0.1) {description}")

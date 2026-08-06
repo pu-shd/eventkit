@@ -86,6 +86,7 @@ artifacts = [
   "src/eventkit/azure/**",
   "src/eventkit/**/templates/**",
   "src/eventkit/db/alembic_template/**",
+  "src/eventkit/db/alembic.ini.template",
   "src/eventkit/testing/fixtures/**",
 ]
 

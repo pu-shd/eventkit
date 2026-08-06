@@ -27,6 +27,7 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.logging` | leaky debug lines | `RedactFilter` installed as a **log record factory**, so it protects handlers eventkit does not own |
 | `eventkit.eventbrite` | an 80-line untestable loop | Pure `aggregate_by_email()`, table-tested |
 | `eventkit.testing` | 2 hand-rolled conftests | pytest plugin + golden Drupal fixtures, shipped in the wheel |
+| `eventkit.db` | a 341-line try/except migrator | `Database`, `declarative_base()`, Alembic wiring (`init_migrations`/`upgrade_to_head`/`stamp`/`assert_at_head`/`lifespan_migrations`), `AZURE_FILES_PRAGMAS` for SQLite on an SMB mount |
 
 ### The two contracts worth reading before you change anything
 
@@ -142,8 +143,7 @@ so they cannot drift from the code that reads them.
 ## Not yet built
 
 Listed so nobody looks for them: `auth` (Easy Auth `Depends`, allow-list, WS
-tickets), `db` (`Database`, Alembic via `lifespan_migrations`, Azure Files
-pragmas), `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
+tickets), `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
 `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh toolkit.
 
 The CLI **is** built, for the parts that exist:
@@ -153,10 +153,13 @@ eventkit profile validate event-profile.yaml   # OK  CAARMS 2026  slug=caarms-20
 eventkit profile public event-profile.yaml     # the browser-safe JSON projection
 eventkit profile checkin-keys event-profile.yaml
 eventkit fieldmap check event-profile.yaml     # resolve and print the field map
+eventkit db init --package myapp               # scaffold migrations/ + alembic.ini
+eventkit db upgrade --url sqlite:///./app.db --migrations-dir migrations
+eventkit db current --url sqlite:///./app.db
 ```
 
-`eventkit azure`, `db`, `ui`, `mirror` and `import` are declared but report that
-they are not built in v0.1.
+`eventkit azure`, `ui`, `mirror` and `import` are declared but report that they
+are not built in v0.1.
 
 ## Licence
 

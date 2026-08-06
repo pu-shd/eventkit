@@ -181,6 +181,9 @@ jobs:
           required = [
               "eventkit/testing/fixtures/drupal/registration_flat.json",
               "eventkit/testing/fixtures/drupal/registration_select_other.json",
+              "eventkit/db/alembic_template/env.py",
+              "eventkit/db/alembic_template/script.py.mako",
+              "eventkit/db/alembic.ini.template",
           ]
           missing = [r for r in required if r not in names]
           if missing:

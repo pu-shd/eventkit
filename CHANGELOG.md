@@ -23,8 +23,22 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   `aggregate_by_email()`.
 - **`eventkit.testing`** — pytest plugin (`pytest11` entry point) with autouse
   `_no_network`, and 15 sanitized golden Drupal payloads shipped in the wheel.
+- **`eventkit.db`** — `Database` (engine, session factory, SQLite pragma
+  wiring), `declarative_base()` with the naming convention Alembic's
+  `render_as_batch` needs to name-and-drop SQLite constraints, `sqlite_url_for()`,
+  and `AZURE_FILES_PRAGMAS` (`TRUNCATE` journal mode, not WAL — SMB has no
+  shared-memory mmap). `eventkit.db.migrate` adopts Alembic: `init_migrations`,
+  `upgrade_to_head` (filelock-serialised, snapshots the SQLite file first,
+  raises rather than logs-and-continues), `current_revision`, `assert_at_head`,
+  `stamp` (for adopting a database the predecessor's hand-rolled migrator
+  already created), `lifespan_migrations` (a drop-in FastAPI `lifespan`), and
+  `ensure_columns` (a documented hotfix-only escape hatch). Replaces the
+  341-line try/except migrator in `ticketed`/`posted`'s `database.py`, which
+  left an app serving against a schema it believed it had after a failed
+  `ALTER TABLE`. `eventkit db init/upgrade/stamp/current` on the CLI.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
-  `profile checkin-keys` / `fieldmap check`. Unbuilt verbs report that honestly.
+  `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
+  `db stamp` / `db current`. Unbuilt verbs report that honestly.
 - `examples/caarms-2026/` — the sanitized reference event.
 - CI: leak greps for institutional addresses, placeholder tokens, discount codes,
   bearer tokens in URLs, and the WAF bypass header; plus gitleaks, a 3.11–3.13
@@ -69,5 +83,5 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `auth`, `db`, `backup`, `notify`, `realtime`, `importer`, `mirror`,
+- Not built: `auth`, `backup`, `notify`, `realtime`, `importer`, `mirror`,
   `admin`, `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` toolkit.
