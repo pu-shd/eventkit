@@ -439,10 +439,7 @@ def as_anonymous(make_client: Callable[..., Any]) -> Callable[..., Any]:
 # `eventkit.backup`'s tests nor any other module built so far needed them: each
 # builds its own throwaway `Base`/`Database` inline instead. Add them for real
 # once an app's `create_app()` factory exists to observe the convention against
-# — `phase1:reference-app` is that first app, per DEC-002. `eventbrite_mock`
-# remains deliberately absent, landing with `eventbrite.client`: a fixture that
-# exists but does not work is worse than one that is missing, because the
-# failure surfaces inside a test rather than at collection.
+# — `phase1:reference-app` is that first app, per DEC-002.
 
 
 # --------------------------------------------------------------------------
@@ -463,3 +460,27 @@ def mail_outbox():
     from ..notify import MemoryTransport
 
     return MemoryTransport()
+
+
+# --------------------------------------------------------------------------
+# Eventbrite
+# --------------------------------------------------------------------------
+@pytest.fixture
+def eventbrite_mock(respx_mock: Any) -> Any:
+    """A :class:`~eventkit.eventbrite.client.EventbriteMock` wired to ``respx_mock``.
+
+    ``respx_mock`` comes from ``respx``'s own pytest plugin (installed
+    automatically with ``eventkit-core[test]``, which depends on ``respx``);
+    entering it as a context manager is what makes an unmatched request raise
+    instead of reaching the network — the ``_no_network`` fixture above blocks
+    the socket layer too, so a real Eventbrite call is doubly impossible here::
+
+        eventbrite_mock.add_attendees(
+            [{"profile": {"email": "a@example.edu"}, "status": "Attending"}]
+        )
+        client = EventbriteClient("t", "12345")
+        attendees = await client.fetch_attendees()
+    """
+    from ..eventbrite.client import EventbriteMock
+
+    return EventbriteMock(respx_mock)

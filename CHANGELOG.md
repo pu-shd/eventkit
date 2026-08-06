@@ -90,6 +90,24 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   `completed_payment`, `pending_payment`, `exempt_registration`, `sync_failed`
   — extracted from `notifications.py:43-96` and de-CAARMSified. Adds the
   `mail_outbox` fixture (a `MemoryTransport`) to `eventkit.testing.plugin`.
+- **`eventkit.eventbrite.client`/`.sync`** — replaces
+  `ticketed/backend/eventbrite.py`'s `EventbriteClient`/`run_eventbrite_sync`
+  (a class reading module-level `Settings` and a 190-line function mixing
+  HTTP paging, aggregation, SQLAlchemy writes and direct notification calls).
+  `EventbriteClient` takes its token/event id as constructor arguments and an
+  injectable `transport=` for `respx`, with a `max_pages` guard against a
+  runaway continuation token. `run_sync(client, ports)` is the port boundary:
+  writes and notifications go through a `SyncPorts` protocol, so it is
+  testable with a fake `ports` and zero database or network.
+  `SqlAlchemySyncPorts` is the batteries-included implementation — takes the
+  app's `Payment`/`Registrant`/`SyncLog` model classes plus a `column_map`
+  for apps whose columns are not named like `AggregatedPayment`'s fields, and
+  rolls back a failed attempt's partial writes before recording it. Fires
+  `unmatched_payment`/`completed_payment` (unchanged from the predecessor's
+  two conditions) and, new, `sync_failed` when a sync attempt itself fails —
+  the predecessor never alerted on that. Adds the `eventbrite_mock` fixture
+  (`EventbriteMock`, `respx`-backed: `.add_attendees()`/`.set_pages()`/
+  `.fail_with()`) to `eventkit.testing.plugin`.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.
@@ -128,6 +146,11 @@ surprising, the original wins and the surprise is documented:
 - **Empty string and absent normalise identically** to `None`.
 - Booleans are coerced at the ingest boundary, rather than stored as
   `"Yes"`/`"yes"`/`None` strings queried with `(col == "Yes") | (col == "yes")`.
+- **`EventbriteClient` has no `purchase_url` method**, unlike `PLAN.md`'s
+  sketch. `eventprofile.models.Ticketing.purchase_url(event_id,
+  discount_code)` already builds this from the profile's
+  `event_url_template`; a second implementation on the client would just be
+  a second place for that template to drift from the profile's.
 - **Auth is a `Depends`, not a header check an app can forget to call.**
   `X-MS-CLIENT-PRINCIPAL-NAME` alone is no longer sufficient — the base64
   `X-MS-CLIENT-PRINCIPAL` claims blob must also be present and well-formed
@@ -145,5 +168,9 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `importer`, `mirror`, `admin`, `eventbrite.client`,
-  `eventbrite.sync`, `ui`, and the `azure` toolkit.
+- Not built: `importer`, `mirror`, `admin`, `ui`, and the `azure` toolkit.
+- `eventkit.eventbrite.sync` does not fire `pending_payment`/
+  `exempt_registration` — those trigger at registrant-ingestion time
+  (`tickets_sold_separately`, per `eventprofile.models.Ticketing.is_exempt`),
+  not from the Eventbrite sync loop. `importer`/`admin`, whichever ends up
+  owning registrant ingestion, should wire them up.
