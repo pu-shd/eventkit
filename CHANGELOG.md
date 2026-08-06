@@ -36,6 +36,19 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   341-line try/except migrator in `ticketed`/`posted`'s `database.py`, which
   left an app serving against a schema it believed it had after a failed
   `ALTER TABLE`. `eventkit db init/upgrade/stamp/current` on the CLI.
+- **`eventkit.auth`** — Azure App Service Easy Auth as a `Depends`, not an
+  imperative call: `EasyAuth.require`/`.optional()`, `AllowList` (empty means
+  deny-all, exact email or `@domain.tld` suffix), `install()` (themed
+  access-denied page + login redirect exception handlers). `dev_principal`
+  has no default and `EasyAuth.__init__` raises if it is set while
+  `WEBSITE_SITE_NAME` indicates Azure App Service; `require_claims_header=True`
+  demands the base64 `X-MS-CLIENT-PRINCIPAL` claims blob rather than trusting
+  the spoofable `X-MS-CLIENT-PRINCIPAL-NAME` header alone. Also
+  `issue_ws_ticket`/`verify_ws_ticket`/`ws_dependency` — stateless HMAC-signed,
+  short-lived WebSocket tickets, since a browser cannot set Easy Auth headers
+  on a socket handshake. Replaces `posted`'s 18 imperative
+  `is_admin_authorized(request)` call sites and ~90 lines of inline
+  access-denied HTML in `ticketed/backend/main.py`.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
   `db stamp` / `db current`. Unbuilt verbs report that honestly.
@@ -74,6 +87,14 @@ surprising, the original wins and the surprise is documented:
 - **Empty string and absent normalise identically** to `None`.
 - Booleans are coerced at the ingest boundary, rather than stored as
   `"Yes"`/`"yes"`/`None` strings queried with `(col == "Yes") | (col == "yes")`.
+- **Auth is a `Depends`, not a header check an app can forget to call.**
+  `X-MS-CLIENT-PRINCIPAL-NAME` alone is no longer sufficient — the base64
+  `X-MS-CLIENT-PRINCIPAL` claims blob must also be present and well-formed
+  by default (`require_claims_header=True`). A `create_app()` factory that
+  wants `eventkit.testing.plugin`'s `make_client`/`as_anonymous` fixtures must
+  expose its constructed `Database` at `app.state.database` and its
+  constructed `EasyAuth` at `app.state.auth` — a convention established here,
+  not enforced by the type system, documented on the `make_client` fixture.
 
 ### Known gaps
 
@@ -83,5 +104,5 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `auth`, `backup`, `notify`, `realtime`, `importer`, `mirror`,
-  `admin`, `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` toolkit.
+- Not built: `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
+  `eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` toolkit.

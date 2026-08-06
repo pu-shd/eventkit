@@ -28,6 +28,7 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.eventbrite` | an 80-line untestable loop | Pure `aggregate_by_email()`, table-tested |
 | `eventkit.testing` | 2 hand-rolled conftests | pytest plugin + golden Drupal fixtures, shipped in the wheel |
 | `eventkit.db` | a 341-line try/except migrator | `Database`, `declarative_base()`, Alembic wiring (`init_migrations`/`upgrade_to_head`/`stamp`/`assert_at_head`/`lifespan_migrations`), `AZURE_FILES_PRAGMAS` for SQLite on an SMB mount |
+| `eventkit.auth` | 18 imperative `is_admin_authorized()` call sites | `EasyAuth` as a `Depends`, not a function call — allow-list, dev bypass refused on Azure, themed access-denied page, HMAC WebSocket tickets |
 
 ### The two contracts worth reading before you change anything
 
@@ -142,9 +143,9 @@ so they cannot drift from the code that reads them.
 
 ## Not yet built
 
-Listed so nobody looks for them: `auth` (Easy Auth `Depends`, allow-list, WS
-tickets), `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
-`eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh toolkit.
+Listed so nobody looks for them: `backup`, `notify`, `realtime`, `importer`,
+`mirror`, `admin`, `eventbrite.client`, `eventbrite.sync`, `ui`, and the
+`azure` zsh toolkit.
 
 The CLI **is** built, for the parts that exist:
 
