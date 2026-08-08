@@ -149,8 +149,7 @@ so they cannot drift from the code that reads them.
 
 ## Not yet built
 
-Listed so nobody looks for them: `mirror`, `admin`, `ui`, and the `azure` zsh
-toolkit.
+Listed so nobody looks for them: `mirror` and the `azure` zsh toolkit.
 
 The CLI **is** built, for the parts that exist:
 
@@ -164,9 +163,9 @@ eventkit db upgrade --url sqlite:///./app.db --migrations-dir migrations
 eventkit db current --url sqlite:///./app.db
 ```
 
-`eventkit azure`, `ui` and `mirror` are declared but report that they are not
-built in v0.1. There is no `eventkit import` verb, built or otherwise: unlike
-those three, importing needs a `Session` and an app-specific `parse`/`upsert`,
+`eventkit azure` and `mirror` are declared but report that they are not built
+in v0.1. There is no `eventkit import` verb, built or otherwise: unlike those
+two, importing needs a `Session` and an app-specific `parse`/`upsert`,
 so it can never be a generic top-level command — see `eventkit.importer`'s
 `add_import_arguments()` for the per-app equivalent.
 

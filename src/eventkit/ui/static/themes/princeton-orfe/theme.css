@@ -1,0 +1,22 @@
+/* eventkit UI kit — "princeton-orfe" theme.
+ *
+ * Layer 2 of the cascade (see tokens/tokens.css). Overrides the brand-neutral
+ * grayscale ramp with Princeton's official orange, #e77500 — the same value
+ * EventProfile.branding.brand_color defaults to, and the value
+ * tokens/tokens.json already declared before this extraction. This resolves
+ * the orange conflict in the predecessor apps' inline styles (`#f58025`, the
+ * older SEAS orange) in favour of the token file.
+ *
+ * These four values are the exact output of
+ * eventkit.ui.render_theme_vars(profile) for a profile whose brand_color is
+ * the default #e77500 — tests/unit/ui/test_ui_packaging.py asserts the two
+ * never drift apart, so a profile that never overrides brand_color renders
+ * identically whether or not the generated per-event layer is mounted.
+ */
+
+:root {
+  --color-brand-10: #ffe5ca;
+  --color-brand-70: #e77500;
+  --color-brand-80: #b84a00;
+  --color-brand-90: #8f2100;
+}

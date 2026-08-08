@@ -11,6 +11,7 @@ Currently useful, and used by CI:
     eventkit profile checkin-keys [PATH] the legacy -> ISO check-in key mapping
     eventkit fieldmap check   [PATH]     resolve a field map and report unmapped risk
     eventkit db init/upgrade/stamp/current   see `eventkit db --help`
+    eventkit ui vendor/vendor-theme          see `eventkit ui --help`
     eventkit version
 """
 
@@ -27,7 +28,6 @@ from . import __version__
 #: message tells an operator the truth rather than "invalid choice".
 NOT_YET_BUILT = {
     "azure": "the zsh bootstrap toolkit (deploy/resume/teardown/doctor/gate)",
-    "ui": "asset vendoring (vendor/vendor-theme)",
     "mirror": "build-time Drupal asset mirroring",
 }
 
@@ -171,6 +171,41 @@ def _cmd_db_current(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_ui_vendor(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .ui import ThemeNotFoundError, vendor
+
+    try:
+        manifest = vendor(Path(args.dest), theme=args.theme, hashed=args.hashed)
+    except ThemeNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"OK  {len(manifest.entries)} file(s) vendored to {args.dest} (theme={args.theme})")
+    return 0
+
+
+def _cmd_ui_vendor_theme(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from .errors import EventProfileError
+    from .ui import render_theme_vars
+
+    try:
+        profile = _load(args.path)
+    except EventProfileError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    css = render_theme_vars(profile)
+    if args.out:
+        Path(args.out).write_text(css)
+        print(f"OK  wrote {args.out}")
+    else:
+        print(css, end="")
+    return 0
+
+
 def _cmd_not_built(args: argparse.Namespace) -> int:
     what = NOT_YET_BUILT[args.command]
     print(
@@ -255,6 +290,29 @@ def build_parser() -> argparse.ArgumentParser:
     db_current = db_sub.add_parser("current", help="print the database's current revision")
     db_current.add_argument("--url", required=True)
     db_current.set_defaults(func=_cmd_db_current)
+
+    ui = sub.add_parser("ui", help="UI kit asset vendoring")
+    ui_sub = ui.add_subparsers(dest="subcommand", required=True)
+
+    ui_vendor = ui_sub.add_parser(
+        "vendor", help="copy the UI kit's shared assets and one theme into a directory"
+    )
+    ui_vendor.add_argument("--dest", required=True, help="destination directory")
+    ui_vendor.add_argument("--theme", required=True, help="theme id, e.g. neutral, princeton-orfe")
+    ui_vendor.add_argument(
+        "--hashed",
+        action="store_true",
+        help="rename each file with a content hash, for immutable caching",
+    )
+    ui_vendor.set_defaults(func=_cmd_ui_vendor)
+
+    ui_vendor_theme = ui_sub.add_parser(
+        "vendor-theme",
+        help="render the per-event :root{--color-brand-*} CSS block for a profile",
+    )
+    ui_vendor_theme.add_argument("path", nargs="?", default=None, help="event-profile.yaml path")
+    ui_vendor_theme.add_argument("--out", default=None, help="write to this file instead of stdout")
+    ui_vendor_theme.set_defaults(func=_cmd_ui_vendor_theme)
 
     for verb, description in NOT_YET_BUILT.items():
         placeholder = sub.add_parser(verb, help=f"(not built in v0.1) {description}")

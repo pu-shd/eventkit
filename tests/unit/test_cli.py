@@ -222,6 +222,37 @@ class TestDbCommands:
         assert capsys.readouterr().out.strip() == "rev1"
 
 
+class TestUiCommands:
+    """CLI wiring only — `eventkit.ui` has its own exhaustive tests."""
+
+    def test_vendor_copies_the_kit(self, tmp_path, capsys):
+        dest = tmp_path / "static"
+        assert main(["ui", "vendor", "--dest", str(dest), "--theme", "neutral"]) == 0
+        assert (dest / "tokens" / "tokens.css").is_file()
+        assert "OK" in capsys.readouterr().out
+
+    def test_vendor_unknown_theme_exits_one(self, tmp_path, capsys):
+        dest = tmp_path / "static"
+        assert main(["ui", "vendor", "--dest", str(dest), "--theme", "bogus"]) == 1
+        assert "unknown theme" in capsys.readouterr().err
+
+    def test_vendor_theme_prints_a_root_block(self, example_path, capsys):
+        assert main(["ui", "vendor-theme", example_path]) == 0
+        assert ":root {" in capsys.readouterr().out
+
+    def test_vendor_theme_writes_to_a_file(self, example_path, tmp_path, capsys):
+        out = tmp_path / "generated-theme.css"
+        assert main(["ui", "vendor-theme", example_path, "--out", str(out)]) == 0
+        assert "--color-brand-70:" in out.read_text()
+        assert "OK" in capsys.readouterr().out
+
+    def test_vendor_theme_invalid_profile_exits_one(self, tmp_path, capsys):
+        bad = tmp_path / "event-profile.yaml"
+        bad.write_text("event:\n  name: Incomplete\n", encoding="utf-8")
+        assert main(["ui", "vendor-theme", str(bad)]) == 1
+        assert "problem(s)" in capsys.readouterr().err
+
+
 class TestUnbuiltVerbs:
     @pytest.mark.parametrize("verb", sorted(NOT_YET_BUILT))
     def test_unbuilt_verb_is_honest_and_exits_two(self, verb, capsys):

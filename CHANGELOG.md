@@ -127,9 +127,39 @@ First extraction from `ticketed` and `posted`. Fresh history, no import.
   `--fail-fast`/`--quiet` flags. There is no generic top-level
   `eventkit import` verb — see the module docstring for why that is
   intentional, not a gap.
+- **`eventkit.admin`** — HMAC-SHA256 destructive-op task tokens, replacing the
+  unauthenticated-curl `clear_data.yml` pattern. `sign_task_request`/
+  `verify_task_request` bind `path`/`sha256(body)`/`ts` with a ±300s window in
+  both directions; `consume_nonce()` records the request's own signature as
+  the single-use nonce and commits immediately, so replay protection holds
+  even if the guarded task later fails. `make_task_router()` writes an audit
+  row for every outcome, including denies (bad signature, stale timestamp,
+  replayed nonce, task exception) — there is deliberately no principal
+  dependency, since the caller is a CI job or operator shell holding a shared
+  secret, not an Easy-Auth human.
+- **`eventkit.ui`** — no-bundler static kit: `tokens/`, component CSS, vendored
+  `main.js`/`hero.js`, and shared ES modules (`esc`, `fetchx`, `toast`).
+  `static_path()`/`theme_ids()`/`theme_path()` expose the shipped
+  `themes/{neutral,princeton-orfe}` as a real directory even in an installed
+  wheel; `render_theme_vars(profile)` derives a four-step `--color-brand-*`
+  ramp from one hex via OKLCH lighten/darken, resolving the `#e77500`-vs-
+  `#f58025` orange conflict in favour of Princeton's official color.
+  `vendor(dest, theme=, hashed=)` copies the shared assets plus one theme into
+  an app's static directory and computes a Subresource Integrity hash for
+  every file — SheetJS and MathJax were unpinned CDN scripts in the
+  predecessors, so an outage took out the export button and rendered every
+  abstract as raw LaTeX. `assert_assets_present()` is a startup check against
+  a partial sync or a pruned Docker layer. `eventkit ui vendor`/
+  `vendor-theme` on the CLI. Deletes the fabricated Paper Tiger content
+  (`cards.html`'s invented ORFE headlines, `hero.html`'s fake news links, the
+  Sherrerd Hall address line in `footer.html`) rather than porting it forward.
+  Ships with a `vitest`/`jsdom` suite for the JS half (`tests/js/`), Node
+  confined to the Docker `test` stage via `run_tests.sh` — no app repo needs
+  `node_modules` in its runtime build.
 - **`eventkit.cli`** — `profile validate` / `profile public` /
   `profile checkin-keys` / `fieldmap check` / `db init` / `db upgrade` /
-  `db stamp` / `db current`. Unbuilt verbs report that honestly.
+  `db stamp` / `db current` / `ui vendor` / `ui vendor-theme`. Unbuilt verbs
+  report that honestly.
 - `examples/caarms-2026/` — the sanitized reference event.
 - CI: leak greps for institutional addresses, placeholder tokens, discount codes,
   bearer tokens in URLs, and the WAF bypass header; plus gitleaks, a 3.11–3.13
@@ -187,7 +217,7 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `mirror`, `admin`, `ui`, and the `azure` toolkit.
+- Not built: `mirror` and the `azure` toolkit.
 - `eventkit.eventbrite.sync` does not fire `pending_payment`/
   `exempt_registration` — those trigger at registrant-ingestion time
   (`tickets_sold_separately`, per `eventprofile.models.Ticketing.is_exempt`),

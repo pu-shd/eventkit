@@ -1,0 +1,51 @@
+/* Paper Tiger — forms. Requires tokens.css. */
+
+.pt-form { display: flex; flex-direction: column; gap: var(--space-4); }
+.pt-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.pt-field__label {
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  color: var(--color-neutral-90);
+}
+.pt-field__hint {
+  color: var(--color-neutral-60);
+  font-size: var(--font-size-xs);
+}
+.pt-field__error {
+  color: var(--color-brand-90);
+  font-size: var(--font-size-xs);
+}
+
+.pt-input,
+.pt-select,
+.pt-textarea {
+  font: inherit;
+  font-family: var(--font-display);
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-neutral-40);
+  background: var(--color-white);
+  color: var(--color-neutral-100);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+.pt-input:focus, .pt-select:focus, .pt-textarea:focus {
+  outline: 2px solid var(--color-focus-outline);
+  outline-offset: 1px;
+  border-color: var(--color-neutral-100);
+}
+.pt-textarea { min-height: 8rem; resize: vertical; }
+.pt-input[aria-invalid="true"],
+.pt-select[aria-invalid="true"],
+.pt-textarea[aria-invalid="true"] { border-color: var(--color-brand-90); }
+
+/* Inline checkbox / radio rows */
+.pt-check { display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--font-display); }
+.pt-check input { accent-color: var(--color-brand-70); }
+
+/* Form actions row */
+.pt-form__actions {
+  display: flex; gap: var(--space-3);
+  border-top: 1px solid var(--color-neutral-10);
+  padding-top: var(--space-4);
+}

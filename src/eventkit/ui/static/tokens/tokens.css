@@ -1,0 +1,86 @@
+/* eventkit UI kit — base tokens.
+ *
+ * Layer 1 of the cascade (see eventkit.ui module docstring):
+ *
+ *   tokens/tokens.css              :root { --color-brand-*: <grayscale> }
+ *   themes/<id>/theme.css          :root { --color-brand-*: <real color> } + theme-only rules
+ *   <generated>/theme.css          :root { --color-brand-*: <per-event ramp> }  (render_theme_vars())
+ *   <adopter>/theme.override.css   last word, mounted from outside the image, never shipped
+ *
+ * --color-brand-* here is a brand-neutral grayscale placeholder on purpose: an
+ * app that forgets to mount a theme still renders a usable, readable page
+ * instead of invisible unstyled elements (undefined custom properties do not
+ * fall back to anything).
+ *
+ * --color-action-* are aliases of --color-brand-*, kept as separate names so a
+ * later layer could retarget interactive elements independently of decorative
+ * brand usage without inventing a second override mechanism. Because these are
+ * `var()` references rather than copied values, overriding --color-brand-70 in
+ * a later cascade layer updates --color-action-70 for free.
+ *
+ * These values are hand-authored to match tokens/tokens.json (the W3C-format
+ * source of record) — tests/unit/ui/test_ui_packaging.py cross-checks the two.
+ */
+
+:root {
+  /* Neutrals */
+  --color-white: #ffffff;
+  --color-neutral-5: #f7f7f8;
+  --color-neutral-10: #eceded;
+  --color-neutral-40: #b3b6ba;
+  --color-neutral-60: #7d8186;
+  --color-neutral-85: #35383c;
+  --color-neutral-90: #24262a;
+  --color-neutral-100: #16171a;
+
+  /* Brand — grayscale placeholder, see file docstring above */
+  --color-brand-10: #f2f2f2;
+  --color-brand-70: #6b6b6b;
+  --color-brand-80: #4d4d4d;
+  --color-brand-90: #333333;
+
+  /* Action — aliases of brand, retargetable independently later */
+  --color-action-70: var(--color-brand-70);
+  --color-action-80: var(--color-brand-80);
+
+  /* Deliberately not brand-derived: stays visually distinct from hover/active
+     brand accents at any brand_color. */
+  --color-focus-outline: #2f6fed;
+
+  /* Type scale */
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-h3: 1.5rem;
+  --font-size-h1-sm: 2rem;
+  --font-size-h1: 2.75rem;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Radius */
+  --radius-none: 0;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-pill: 999px;
+
+  /* Space — quarter-rem scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Layout */
+  --container-gutter: 1.5rem;
+  --container-max: 1200px;
+
+  /* Composite */
+  --border-footer-accent: 4px solid var(--color-brand-70);
+}

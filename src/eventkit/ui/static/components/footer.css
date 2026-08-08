@@ -1,0 +1,120 @@
+/* Paper Tiger — footer CSS. Requires tokens.css. */
+
+.pt-footer {
+  background: var(--color-neutral-85);
+  color: var(--color-white);
+  border-top: var(--border-footer-accent);
+  padding: var(--space-16) 0;
+  font-family: var(--font-label);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+.pt-footer a {
+  color: var(--color-white);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  transition: all 0.2s ease;
+}
+.pt-footer a:hover, .pt-footer a:focus { 
+  color: var(--color-brand-70); 
+  border-color: var(--color-brand-70);
+}
+.pt-footer strong {
+  color: var(--color-white);
+  display: block;
+  margin-bottom: var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.pt-footer__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-8);
+}
+@media (min-width: 48rem) {
+  .pt-footer__grid {
+    grid-template-columns: 2fr 1fr 2fr;
+    gap: var(--space-10);
+  }
+}
+
+.pt-footer__col p { margin: 0; }
+
+/* Social link strips */
+.pt-social-links {
+  list-style: none;
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  display: flex;
+  gap: var(--space-4);
+}
+.pt-social-links--vertical { flex-direction: column; gap: var(--space-2); }
+.pt-social-links--horizontal { flex-direction: row; }
+.pt-social-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  border-bottom: none;
+  padding: 0;
+}
+.pt-social-links--horizontal a { 
+  font-size: 1.25rem;
+  width: 36px;
+  height: 36px;
+  background: var(--color-neutral-90);
+  justify-content: center;
+  border-radius: 50%;
+}
+.pt-social-links--horizontal a:hover {
+  background: var(--color-brand-70);
+  color: var(--color-neutral-100);
+}
+
+/* Stacked Engineering wordmark */
+.pt-seas-stacked { 
+  display: inline-block; 
+  margin-top: var(--space-6); 
+}
+.pt-seas-stacked img { max-width: 260px; height: auto; }
+
+/* Subfooter */
+.pt-subfooter {
+  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: var(--space-8);
+  margin-top: var(--space-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  align-items: center;
+}
+@media (min-width: 62rem) {
+  .pt-subfooter { 
+    flex-direction: row;
+    justify-content: space-between; 
+  }
+}
+
+.pt-subfooter__links {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; gap: var(--space-6); flex-wrap: wrap;
+}
+.pt-subfooter__links a {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: none;
+  opacity: 0.7;
+}
+.pt-subfooter__links a:hover { opacity: 1; color: var(--color-brand-70); }
+
+.pt-subfooter__copy { 
+  font-size: 0.8rem; 
+  margin: 0;
+  opacity: 0.7;
+}
+
+.pt-subfooter__shield img { height: 54px; width: auto; filter: grayscale(1) brightness(2); }
+.pt-subfooter__shield:hover img { filter: none; }
+
