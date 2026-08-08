@@ -27,6 +27,14 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.logging` | leaky debug lines | `RedactFilter` installed as a **log record factory**, so it protects handlers eventkit does not own |
 | `eventkit.eventbrite` | an 80-line untestable loop | Pure `aggregate_by_email()`, table-tested |
 | `eventkit.testing` | 2 hand-rolled conftests | pytest plugin + golden Drupal fixtures, shipped in the wheel |
+| `eventkit.db` | a 341-line try/except migrator | `Database`, `declarative_base()`, Alembic wiring (`init_migrations`/`upgrade_to_head`/`stamp`/`assert_at_head`/`lifespan_migrations`), `AZURE_FILES_PRAGMAS` for SQLite on an SMB mount |
+| `eventkit.auth` | 18 imperative `is_admin_authorized()` call sites | `EasyAuth` as a `Depends`, not a function call — allow-list, dev bypass refused on Azure, themed access-denied page, HMAC WebSocket tickets |
+| `eventkit.backup` | 2 hand-written 55-line field lists | `dump()`/`restore()` driven by `sqlalchemy.inspect(model).columns`, `make_backup_router()` (`GET db-backup`, `POST db-restore(/validate)`), whole-payload validation before the first `DELETE`, restore disabled by default |
+| `eventkit.realtime` | a module-global socket list | Polling-first: `ChangeLogMixin` + `record_change()`/`poll_changes()`, `make_changes_router()` (`GET /api/changes?since=<cursor>`). WebSocket push (`ChangeBroadcaster`, `make_changes_ws_route()`) is opt-in and instance-local; a full or dead subscriber is dropped without affecting any other connection |
+| `eventkit.notify` | a hardcoded Resend `if/elif` chain | `Notifier`/`NotifyPolicy`/`Renderer`, `LogTransport` default (never blocks a deploy), `SmtpTransport` recommended real transport, `ResendTransport`/`AcsTransport` behind extras — every blocking SDK call wrapped in `anyio.to_thread`. Five shipped templates, adopter/profile/default `ChoiceLoader` precedence |
+| `eventkit.eventbrite.client` | a per-call `httpx.AsyncClient()` with no injectable transport | `EventbriteClient.fetch_attendees()`/`iter_attendees()`, a `transport=` seam for `respx`, a `max_pages` runaway guard; `EventbriteMock` + the `eventbrite_mock` fixture drive it in tests with zero network |
+| `eventkit.eventbrite.sync` | a 190-line function mixing HTTP paging, aggregation, writes and email | `run_sync(client, ports)` against a `SyncPorts` protocol — testable with a fake `ports` and zero database; `SqlAlchemySyncPorts` is the batteries-included impl. Fires `unmatched_payment`/`completed_payment` (unchanged from the predecessor) and, new, `sync_failed` when a sync attempt fails |
+| `eventkit.importer` | a script hardcoding one model and one parser, commit-or-nothing | `iter_records()` reads `.tar.gz`/`.tgz`/a directory/`.json`/`.jsonl`/`.csv`; `run_import(parse, upsert, session_factory)` never raises for a bad record (`ImportOutcome.INVALID` + an error, not a crash) and adds the missing `--dry-run`. `add_import_arguments()` gives every app's own importer CLI the same flags |
 
 ### The two contracts worth reading before you change anything
 
@@ -141,10 +149,8 @@ so they cannot drift from the code that reads them.
 
 ## Not yet built
 
-Listed so nobody looks for them: `auth` (Easy Auth `Depends`, allow-list, WS
-tickets), `db` (`Database`, Alembic via `lifespan_migrations`, Azure Files
-pragmas), `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
-`eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh toolkit.
+Listed so nobody looks for them: `mirror`, `admin`, `ui`, and the `azure` zsh
+toolkit.
 
 The CLI **is** built, for the parts that exist:
 
@@ -153,10 +159,16 @@ eventkit profile validate event-profile.yaml   # OK  CAARMS 2026  slug=caarms-20
 eventkit profile public event-profile.yaml     # the browser-safe JSON projection
 eventkit profile checkin-keys event-profile.yaml
 eventkit fieldmap check event-profile.yaml     # resolve and print the field map
+eventkit db init --package myapp               # scaffold migrations/ + alembic.ini
+eventkit db upgrade --url sqlite:///./app.db --migrations-dir migrations
+eventkit db current --url sqlite:///./app.db
 ```
 
-`eventkit azure`, `db`, `ui`, `mirror` and `import` are declared but report that
-they are not built in v0.1.
+`eventkit azure`, `ui` and `mirror` are declared but report that they are not
+built in v0.1. There is no `eventkit import` verb, built or otherwise: unlike
+those three, importing needs a `Session` and an app-specific `parse`/`upsert`,
+so it can never be a generic top-level command — see `eventkit.importer`'s
+`add_import_arguments()` for the per-app equivalent.
 
 ## Licence
 

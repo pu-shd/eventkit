@@ -47,10 +47,11 @@ dependencies = [
   "pydantic>=2.7,<3",
   "PyYAML>=6",
   "Jinja2>=3.1",
+  "anyio>=4,<5",
 ]
 
 [project.optional-dependencies]
-web      = ["fastapi>=0.111,<1", "python-multipart>=0.0.9"]
+web      = ["fastapi>=0.111,<1", "python-multipart>=0.0.9", "jinja2>=3.1,<4"]
 db       = ["SQLAlchemy>=2.0,<3", "alembic>=1.13", "filelock>=3.13"]
 http     = ["httpx>=0.27,<1"]
 resend   = ["resend>=0.8"]
@@ -86,6 +87,7 @@ artifacts = [
   "src/eventkit/azure/**",
   "src/eventkit/**/templates/**",
   "src/eventkit/db/alembic_template/**",
+  "src/eventkit/db/alembic.ini.template",
   "src/eventkit/testing/fixtures/**",
 ]
 
@@ -108,6 +110,13 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "S", "C4"]
 ignore = ["S101"]  # assert is fine in this codebase's tests
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)`/`File(...)`/`Form(...)`/`Query(...)` in a signature default are
+# the whole point of FastAPI's DI — each is evaluated once at route
+# registration, not per request, so B008's "mutable default" concern does not
+# apply.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S105", "S106"]  # hardcoded test tokens are the point

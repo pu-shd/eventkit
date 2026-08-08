@@ -1,8 +1,10 @@
-"""Eventbrite integration: typed models, pure aggregation, HTTP client.
+"""Eventbrite integration: typed models, pure aggregation, HTTP client, sync loop.
 
-``models`` and ``aggregate`` are dependency-free (pydantic only). The HTTP client
-lives in ``eventkit.eventbrite.client`` and needs the ``[http]`` extra, so it is
-not imported here — only ``ticket-reconciler`` needs it.
+``models`` and ``aggregate`` are dependency-free (pydantic only). The HTTP
+client (``eventkit.eventbrite.client``, needs ``[http]``) and the sync loop
+(``eventkit.eventbrite.sync``, needs ``[db]`` only if its
+``SqlAlchemySyncPorts`` is used) are not imported here — only
+``ticket-reconciler`` needs them.
 """
 
 from __future__ import annotations
