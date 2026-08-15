@@ -27,30 +27,65 @@ Both predecessor repos are tagged `pre-extraction` (`11f0a10`, `ea5b3da`).
 **Documentation** for building the next event's Drupal form and wiring it to
 deployed apps: [`../drupal/`](../drupal/).
 
-## Still needs a human with console access
+## The predecessors are gone
+
+**2026-08-15: both Azure deployments were backed up and torn down.** The event is
+over and the stack that replaced them is published, so the resource groups
+`…-caarms-reconciler-rg` and `…-posted-rg` were deleted, taking two B1 plans, two
+container registries, a Postgres Flexible Server and two web apps with them. The
+subscription is now empty.
+
+The final backup is local, outside any repository, and was verified rather than
+assumed: `posted.db` passes `pragma integrity_check`, and the reconciler's
+`pg_dump` was **restored into a scratch PostgreSQL 18 container with zero errors
+and matching row counts**. Contents: posted 106 rows (20 presenters, 63
+registrants, 23 rooms); reconciler 2,014 rows (42 payments, 62 registrants, 2
+saved groups, 7 shirt-inventory rows, 1,901 sync logs).
+
+Worth noting: the predecessor's own `db_admin_tool.py` dumped only `registrants`
+and `payments`. A restore from one of its backups would have silently discarded
+1,910 of those 2,014 rows.
+
+## Still needs a human, outside Azure
 
 Tracked in `HANDOVER-URGENT.md` in the working directory (not committed — it
-contains operational detail about a live deployment). The four open items:
+contains operational detail about what was a live deployment). What remains:
 
-1. **Rotate every live secret.** Now unblocked: the logging lines are deployed, so
-   a new token no longer lands in the log on the next call. Assume every current
-   value is compromised — they were written to the App Service log stream and Log
-   Analytics on every webhook call for the life of the deployment.
-   Rotating a webhook token has a gap: between setting the app setting and updating
-   the Drupal handler, submissions get 403 and **Drupal does not retry**. Do it
-   outside a registration window.
-2. **Set `ALLOWED_ADMIN_PRINCIPALS` as a repo secret or variable on `posted`.** CI
-   no longer writes a hardcoded fallback; the last deploy logged a warning and left
-   the existing app setting alone. The allow-list is currently unmanaged.
-3. **Decide on the WAF bypass value.** Get a real shared secret, or drop the
-   mechanism. The header is now omitted when unset, so asset mirroring degrades.
-4. **Regenerate the nine speaker prefill tokens.** They are bearer credentials and
-   leaked through a saved HTML page.
+1. **Rotate the two third-party credentials.** Teardown invalidated the App
+   Service settings, so the webhook tokens and the Easy Auth client secrets died
+   with the apps. Two credentials belong to other vendors and remain valid until
+   revoked **in their consoles**: `EVENTBRITE_API_TOKEN` and `RESEND_API_KEY`.
+   Both were written to the log stream on every webhook call for the life of the
+   deployment, so both should be treated as compromised. Two Entra app
+   registrations also survive the resource groups and can be deleted separately.
 
-Also unresolved: two `big-agenda` commits passed CI against `posted`'s `main` on
-2026-06-26 but `main`'s tip is the commit before them, so `main` was rolled back.
-That work is not in `origin` and not covered by the `pre-extraction` tag. If the
-rollback was not deliberate it is only recoverable from a local clone.
+2. ~~**Set `ALLOWED_ADMIN_PRINCIPALS` on `posted`.**~~ **Moot** — the deployment
+   is gone.
+
+## Decisions taken, so they are not re-opened
+
+**The WAF bypass header stays as it is.** WDS operates one shared bypass header
+and there is no per-consumer secret to be had, so `x-wdsoit-bot-bypass` is the
+only mechanism available. Accepted as a known limitation rather than treated as
+an open question.
+
+Its practical consequences are unchanged and already enforced: the header value
+comes from an environment variable with **no default**, asset mirroring is
+build-time and opt-in rather than something that runs on every application boot,
+and `drupal-event-forms`' `tools/redact.py` rejects the header **name** — because
+a bypass whose only secret is its name is published the moment the name is.
+
+**The nine speaker prefill tokens were not rotated; the copies were destroyed.**
+No event is running, so there is nothing for a token to protect and nowhere it
+needs to work. Three local files carrying 26 real bearer links were deleted:
+`links-for-speakers.html`, `administrative-utilities.html` and
+`speaker-bios-talks.html`. The tokens remain valid inside Drupal against
+submissions for a finished event; regenerate them there if that form is ever
+reused.
+
+**The `posted` rollback is resolved** — see phase 8 above. The two `big-agenda`
+commits were recovered from unreferenced objects and pushed as
+`recovered/big-agenda` before archiving.
 
 ## The roadmap is merged
 
