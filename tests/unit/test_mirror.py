@@ -423,7 +423,8 @@ class TestMirrorCli:
 
         assert route.call_count == 2
 
-    def test_mirror_is_no_longer_in_not_yet_built(self):
-        from eventkit.cli import NOT_YET_BUILT
+    def test_mirror_is_a_registered_verb(self):
+        from eventkit.cli import build_parser
 
-        assert "mirror" not in NOT_YET_BUILT
+        actions = [a for a in build_parser()._actions if a.dest == "command"]
+        assert "mirror" in actions[0].choices

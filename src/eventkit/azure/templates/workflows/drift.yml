@@ -1,0 +1,131 @@
+# What quietly changed since the ledger was written.
+#
+# Copy to .github/workflows/drift.yml.
+#
+# Three things go wrong on a two-year horizon without anyone touching the code:
+#
+#   * The App Service plan is scaled or moved, its outbound IP addresses change,
+#     and the Postgres firewall no longer admits it. The application is simply
+#     down. This is the one case the job *remediates* rather than reports,
+#     because the failure mode is an outage and the fix is unambiguous.
+#
+#   * The Easy Auth client secret expires. Admin sign-in starts returning 500
+#     and nothing anywhere says why. Warned at 60 days.
+#
+#   * A manual gate was skipped during a rush and never revisited. Skipped gates
+#     marked critical resurface here. `eventkit azure gate ack --until <date>
+#     --reason <ticket>` silences one for a stated period, on purpose, with the
+#     reason recorded — because a nightly alert that is always red teaches
+#     people to stop reading it.
+
+name: Drift
+
+on:
+  schedule:
+    - cron: '40 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Install the toolkit
+        run: pipx install "eventkit[azure] @ ${{ vars.EVENTKIT_SPEC }}"
+
+      - name: Compare live configuration against the ledger
+        id: drift
+        continue-on-error: true
+        run: |
+          eventkit azure drift --app "${{ vars.APP_NAME }}" --yes | tee drift.txt
+
+      - name: Re-admit the plan's outbound addresses
+        if: vars.DATASTORE == 'postgres'
+        run: |
+          set -euo pipefail
+          ips=$(az webapp show -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+                  -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+                  --query possibleOutboundIpAddresses -o tsv | tr ',' '\n')
+          i=0
+          for ip in $ips; do
+            i=$((i+1))
+            az postgres flexible-server firewall-rule create \
+              --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+              --name "${{ vars.AZURE_DB_SERVER }}" \
+              --rule-name "appservice-${i}" \
+              --start-ip-address "$ip" --end-ip-address "$ip" -o none 2>/dev/null || true
+          done
+          echo "re-checked ${i} outbound address(es)"
+
+      - name: Warn on an expiring Easy Auth secret
+        run: |
+          set -euo pipefail
+          client_id=$(az webapp auth show \
+            -g "${{ vars.AZURE_RESOURCE_GROUP }}" -n "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --query "identityProviders.azureActiveDirectory.registration.clientId" -o tsv || true)
+          [[ -n "$client_id" ]] || { echo "Easy Auth is not configured."; exit 0; }
+          end=$(az ad app credential list --id "$client_id" \
+                 --query "sort_by([], &endDateTime)[-1].endDateTime" -o tsv 2>/dev/null || true)
+          [[ -n "$end" ]] || { echo "No client secret found (certificate or federated?)."; exit 0; }
+          days=$(( ( $(date -u -d "$end" +%s) - $(date -u +%s) ) / 86400 ))
+          echo "Easy Auth secret expires in ${days} day(s) (${end})"
+          if (( days < 60 )); then
+            echo "EXPIRING=$days" >> "$GITHUB_ENV"
+            echo "::warning::Easy Auth client secret expires in ${days} days. Run: eventkit azure secrets rotate"
+          fi
+
+      - name: Raise an issue for anything unresolved
+        if: steps.drift.outcome == 'failure' || env.EXPIRING != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '(no report)';
+            try { report = fs.readFileSync('drift.txt', 'utf8').slice(0, 60000); } catch {}
+            const expiring = process.env.EXPIRING;
+            const title = 'Infrastructure drift';
+            const body = [
+              expiring ? `**Easy Auth client secret expires in ${expiring} days.** Run \`eventkit azure secrets rotate\`.\n` : '',
+              '```', report, '```', '',
+              `Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'A skipped gate that is a known, tracked exception can be acknowledged:',
+              '`eventkit azure gate ack <id> --until YYYY-MM-DD --reason "<ticket>"`',
+            ].join('\n');
+            const { data } = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: 'drift',
+            });
+            const existing = data.find(i => i.title === title);
+            if (existing) {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ['drift'] });
+            }
+
+      - name: Close the issue when everything is clean
+        if: steps.drift.outcome == 'success' && env.EXPIRING == ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: 'drift',
+            });
+            for (const issue of data.filter(i => i.title === 'Infrastructure drift')) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: issue.number, body: 'Clean as of this run; closing.',
+              });
+              await github.rest.issues.update({ ...context.repo, issue_number: issue.number, state: 'closed' });
+            }

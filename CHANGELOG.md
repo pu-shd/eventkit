@@ -1,6 +1,73 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.3.0 — unreleased
+
+Phase 2: the Azure bootstrap toolkit.
+
+### Added
+
+- **`eventkit azure`** — an interactive, colourful, resumable toolkit for one
+  event's deployment, shipped as package data and executed with `execve` so it
+  genuinely owns the terminal and its signals. Verbs: `deploy`, `resume`,
+  `update`, `teardown`, `status`, `doctor`, `adopt`, `drift`, `gate ack`,
+  `logs`, `open`, `eject`. Global `--dry-run`, `--yes`, `--no-reprompt`,
+  `--postgres`, `--verbose`.
+- **The manual-step gate.** A numbered checklist and a portal deep link, then a
+  poll of a read-only predicate with a spinner and elapsed time, succeeding the
+  instant the predicate passes and accepting `[s]kip [r]etry [o]pen [q]uit`
+  while it waits. Under `--yes` it fails fast with the checklist rather than
+  blocking a CI job. Gates: `az-login`, `gh-auth`, `easy-auth`,
+  `provider-reg`, `acrpull`, `eventbrite-token`, `webhook`, `dns-cname`,
+  `domain-cert`.
+- **`.eventkit/state.json`**, a committed step ledger recording what was created
+  and what is outstanding, so `resume` replays only `pending` and `failed` — and
+  so the work can be picked up on another machine. No secret is ever written to
+  it; there is a test asserting that after a full deploy.
+- **Managed identity throughout, no passwords.** System-assigned identity with
+  `AcrPull` for the web app and the registry admin account disabled; a
+  user-assigned identity with federated credentials for GitHub Actions, holding
+  `AcrPush` and `Website Contributor` rather than Contributor on the group.
+- **Six CI/CD workflow templates** — `test`, `deploy`, `backup`, `admin-task`,
+  `drift`, `teardown` — plus an annotated `app.conf.example`.
+- **`docs/azure/`** — the toolkit, the workflows, a gate reference, how to add an
+  application, and troubleshooting.
+- **36 bats tests** against a mock `az`, `openssl`, `gh`, `curl` and `dig`,
+  covering the whole deploy flow with no subscription and no network. `shellcheck`
+  over the toolkit. Both run from `./run_tests.sh`.
+
+### Fixed
+
+- `(( EK_DRY_RUN )) && print …` as a function's last statement. In zsh,
+  `(( expr ))` exits non-zero when the expression is 0, so with dry run off
+  `ek_print_plan` returned 1 and `setopt err_return` aborted the caller: a plain
+  `deploy` died silently right after printing its plan while `--dry-run` worked
+  perfectly. Now an explicit `if`, in both places it occurred.
+- `local … status …` in `ek_steps_run`. `status` is read-only in zsh.
+- `ek_gen_secret` returning empty output rather than failing, which sent the
+  settings step down the "prompt the operator" path and aborted a `--yes` run
+  with a misleading message. It now validates its own output.
+- `ek_conf_each_setting` aborting under `no_unset` on a settings table with
+  trailing empty fields.
+- Invalid TOML in the five shipped `deploy/app.conf` files (`name = "X"; type =
+  "computed"` on one line). Fixed in each application repository, which now also
+  carries `tests/test_deploy_conf.py`.
+
+### Removed
+
+- The `NOT_YET_BUILT` CLI scaffolding. Every registered verb is now built.
+
+## 0.2.1
+
+- `IdentityMixin` failed under PEP 563 in every application that used it.
+
+## 0.2.0
+
+- Phase 1 complete: `db`, `auth`, `backup`, `realtime`, `notify`, `importer`,
+  `admin`, `ui`, `mirror`, and `eventbrite.{client,sync}` joined the modules
+  released in 0.1.0. 833 tests.
+
+## 0.1.0
+
 
 First extraction from `ticketed` and `posted`. Fresh history, no import.
 

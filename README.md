@@ -162,7 +162,6 @@ The library is complete for v0.2. What remains is **outside** this repository:
 
 | Not here | Where it goes |
 |---|---|
-| The `azure` zsh bootstrap toolkit | `eventkit azure` reports that it is not built in v0.2. Specified in [`docs/roadmap/phase-02-azure-toolkit.md`](docs/roadmap/phase-02-azure-toolkit.md). |
 | The five applications | Their own repositories, listed above. |
 
 The CLI covers the parts that exist:
@@ -174,6 +173,48 @@ eventkit profile checkin-keys event-profile.yaml
 eventkit fieldmap check event-profile.yaml     # resolve and print the field map
 eventkit ui vendor --dest ./vendor --theme neutral
 eventkit mirror --spec mirror.yaml --dest ./vendor/site
+```
+
+## Deploying to Azure
+
+`eventkit azure` provisions and maintains one event's applications: an
+interactive, colourful, **resumable** bootstrap with `deploy`, `resume`,
+`update` and `teardown`, plus `status`, `doctor`, `adopt`, `drift`, `gate ack`,
+`logs`, `open` and `eject`.
+
+```zsh
+eventkit azure deploy --event caarms-2026 --dry-run   # print every az command, run none
+eventkit azure deploy --event caarms-2026
+```
+
+Steps that cannot be scripted — the Entra ID identity provider, a DNS CNAME, an
+Eventbrite token, the Drupal Remote Post handler — become **gates**: a numbered
+checklist and a portal deep link, then a poll of a read-only predicate that
+succeeds the moment you are done. It never asks you to confirm; it checks. Under
+`--yes` a gate fails fast with the checklist instead of blocking a CI job.
+
+State lives in a committed `.eventkit/state.json` step ledger, so `resume` picks
+up exactly where an interruption left it — on a different machine if need be. No
+secret is ever written to it.
+
+There are no passwords anywhere: the web app pulls from the registry with a
+system-assigned managed identity, and GitHub Actions authenticates with a
+user-assigned identity and federated credentials.
+
+Six CI/CD workflow templates ship as package data — test, deploy, backup, drift,
+admin-task and teardown.
+
+- [`docs/azure/`](docs/azure/README.md) — the toolkit
+- [`docs/azure/ci-cd.md`](docs/azure/ci-cd.md) — the workflows
+- [`docs/azure/gates.md`](docs/azure/gates.md) — every gate and its predicate
+- [`docs/azure/adding-an-application.md`](docs/azure/adding-an-application.md)
+- [`docs/azure/troubleshooting.md`](docs/azure/troubleshooting.md)
+
+36 bats tests exercise the whole flow against a mock `az` — no subscription, no
+network, no credentials:
+
+```zsh
+docker-compose run --rm test bats tests/azure/toolkit.bats
 ```
 
 ## Licence

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Mock docker. Records the call; silent success unless a fixture says otherwise.
+: "${AZ_MOCK_LOG:=/tmp/az-mock.log}"
+printf '%s %s\n' "docker" "$*" >> "$AZ_MOCK_LOG"
+if [ -n "${DOCKER_MOCK_OUT:-}" ]; then printf '%s' "${DOCKER_MOCK_OUT}"; fi
+if [ -n "${DOCKER_MOCK_FAIL:-}" ]; then exit 1; fi
+exit 0

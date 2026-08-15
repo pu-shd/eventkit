@@ -76,8 +76,55 @@ Every library module is built and tested: `identity`, `drupal`, `eventprofile`,
 eventkit-core[app] @ https://github.com/pu-shd/eventkit/archive/refs/tags/v0.2.0.tar.gz
 ```
 
-What remains outside this repository: the `azure` zsh toolkit (phase 2) and the five
-applications (phases 3–7).
+## Phase 2 is complete
+
+`eventkit azure` is built: `lib/{boot,color,log,prompt,state,name,az,gh,secrets,manual,verify,conf,steps}.zsh`,
+fifteen numbered step files, and one dispatcher with the verbs `deploy`, `resume`,
+`update`, `teardown`, `status`, `doctor`, `adopt`, `drift`, `gate`, `logs`, `open`
+and `eject`. Documented in [`../azure/`](../azure/README.md).
+
+The manual-step gate was built before the provisioning steps, as planned: it is
+the stated requirement, and it is what let the previously undocumented Easy Auth
+configuration be written down as a checklist plus a verifiable predicate.
+
+**36 bats tests against a mock `az`** covering naming determinism and clamping,
+ledger round-trips, the no-secrets-in-the-ledger invariant, dry run, idempotence
+and resume, all five gate behaviours, managed identity, the settings-reach-one-call
+guard, the SQLite pins, Postgres `--public-access None`, and every other verb.
+`./run_tests.sh` runs pytest, shellcheck and bats together.
+
+Six CI/CD workflow templates ship as package data: `test`, `deploy`, `backup`,
+`admin-task`, `drift`, `teardown`. All authenticate with the federated managed
+identity; none writes an application setting.
+
+### Defects found by running the toolkit
+
+Three were invisible to inspection, and all three are the same shape as the bug
+class this whole extraction exists to remove.
+
+- **`(( EK_DRY_RUN )) && print …` as a function's last statement.** In zsh,
+  `(( expr ))` exits non-zero when the expression evaluates to 0, so with dry-run
+  off `ek_print_plan` returned 1, and under `setopt err_return` that aborted the
+  caller. A plain `deploy` died silently immediately after printing its plan,
+  while `--dry-run` worked perfectly. The same hazard had already been fixed once
+  for `(( i++ ))` with `i=0`; it is now an explicit `if` in both places, with the
+  reasoning in a comment in `lib/log.zsh`.
+- **`local … status …`** in `ek_steps_run`. `status` is read-only in zsh, so
+  the declaration failed and the function returned before doing anything.
+- **Invalid TOML in all five shipped `deploy/app.conf` files** — setting tables
+  written as `name = "X"; type = "computed"` on one line. TOML has no statement
+  separator, so the toolkit could read no settings at all. Already published to
+  five repositories, caught only when the toolkit first tried to parse one. Fixed
+  in all five plus the scaffold, and each repository now carries
+  `tests/test_deploy_conf.py` so it cannot recur.
+
+Two of the test doubles were also lying: a mock `openssl` that printed nothing
+(so generated webhook tokens were empty, and the deploy fell through to
+"prompt the operator"), and a mock `az` whose reads did not reflect prior writes
+(so the identity step could not find the principal it had just assigned). Both
+now model the real thing.
+
+What remains outside this repository: the five applications (phases 3–7).
 
 ## Defects found by actually running things
 

@@ -1,0 +1,124 @@
+# deploy/app.conf — the contract between an application and `eventkit azure`.
+#
+# Adding a sixth application to the stack is this file, not a new deploy script.
+# The predecessors had 1,475 lines of shell across two repositories that were
+# 70–90% the same boilerplate; the differences that mattered were about a dozen
+# values, which is what this file holds.
+#
+# TOML, and genuinely TOML: `name = "X"; type = "computed"` on one line is a
+# syntax error. One key per line. There is a test in every application repository
+# that parses this file for exactly that reason.
+
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+name        = "my-app"          # also the resource-name segment and the ledger key
+image       = "my-app"          # repository name inside the container registry
+health_path = "/healthz"        # must answer 200 anonymously, and say nothing else
+
+# ---------------------------------------------------------------------------
+# Shape
+# ---------------------------------------------------------------------------
+# easy_auth:  true                    every route behind Entra ID
+#             "admin-routes-only"     public pages stay anonymous
+#             false                   no sign-in at all (rare; say why in the README)
+easy_auth = true
+
+needs_db   = true
+db_default = "sqlite"           # "postgres" to make Postgres the default instead
+
+# "required" | "recommended" | "optional" | "no"
+custom_domain = "optional"
+
+# Manual steps this application needs. Each one polls a read-only predicate and
+# succeeds the moment it passes; under --yes they fail fast with the checklist
+# rather than blocking a CI job forever.
+#   easy-auth          Entra ID identity provider (portal, needs your tenant)
+#   eventbrite-token   private token + event id, fetched from the Eventbrite UI
+#   webhook            Drupal Remote Post handler, confirmed by a real submission
+#   dns-cname          CNAME created with whoever runs your DNS
+#   domain-cert        managed certificate bound to the custom domain
+gates = ["easy-auth", "webhook"]
+
+# ---------------------------------------------------------------------------
+# Settings
+#
+# The toolkit is the only writer of application settings. Do not also set them
+# in a workflow: in the predecessors they were written in two places and had
+# drifted three ways on the admin allow-list alone — seven addresses in the
+# app's config default, seven in the workflow, four in the script.
+#
+# type =
+#   computed   the toolkit derives it (DATABASE_URL from the datastore choice)
+#   secret     generated or prompted for; stored in gitignored .env.deploy and in
+#              App Service, never in the committed ledger
+#   fixed      always this value; not asked about
+#   list | bool | int | string | choice   prompted, with validation
+#
+# generate = "hex32"   mint one with 32 random bytes rather than asking
+# gate = "<id>"        do not ask until that gate has been satisfied
+# ---------------------------------------------------------------------------
+
+[[setting]]
+name = "DATABASE_URL"
+type = "computed"
+required = true
+
+[[setting]]
+name = "DRUPAL_WEBHOOK_TOKEN"
+type = "secret"
+required = true
+generate = "hex32"
+
+[[setting]]
+name = "AUTHORIZED_PRINCIPALS"
+type = "list"
+required = true
+prompt = "Comma-separated admin emails, or @domain.edu. Empty means DENY ALL."
+
+# Off unless someone deliberately turns it on: it truncates every table.
+[[setting]]
+name = "ENABLE_RESTORE"
+type = "bool"
+default = "False"
+
+[[setting]]
+name = "WEBSITES_PORT"
+type = "fixed"
+value = "8000"
+
+# App Service kills a container that has not answered in 230 seconds. A first
+# boot that runs migrations will exceed that.
+[[setting]]
+name = "WEBSITES_CONTAINER_START_TIME_LIMIT"
+type = "fixed"
+value = "600"
+
+# ---------------------------------------------------------------------------
+# Examples of the other setting types
+# ---------------------------------------------------------------------------
+# [[setting]]
+# name = "EVENTBRITE_API_TOKEN"
+# type = "secret"
+# required = true
+# gate = "eventbrite-token"
+#
+# [[setting]]
+# name = "AUTO_SYNC_INTERVAL_MINUTES"
+# type = "int"
+# default = "60"
+# min = 3
+# max = 1440
+#
+# [[setting]]
+# name = "NOTIFY_TRANSPORT"
+# type = "choice"
+# choices = ["log", "smtp", "resend", "acs"]
+# default = "log"
+#
+# A discount code is not a secret — the browser receives it from the Drupal
+# twig — but it still does not belong in git.
+# [[setting]]
+# name = "EVENTBRITE_DISCOUNT_GENERAL"
+# type = "string"
+# required = false

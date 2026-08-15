@@ -1,0 +1,433 @@
+#!/bin/zsh
+#
+# eventkit azure — provision and maintain one event's applications on Azure.
+#
+#   deploy    provision and configure; idempotent and resumable
+#   resume    the same, without re-asking questions already answered
+#   update    rebuild the image and restart; no provisioning
+#   teardown  delete what this ledger created
+#   status    what the ledger says, next to what Azure says
+#   doctor    check tooling, sign-in, and the gates, changing nothing
+#   adopt     import an existing deployment into a ledger
+#   drift     compare live configuration against the ledger
+#   gate      acknowledge a skipped manual step for a time
+#   logs      tail the application log
+#   open      open the app, or the portal blade
+#   eject     copy this toolkit into the repository to modify
+#
+# Global flags: --dry-run --yes/-y --no-reprompt --verbose --app --event --state
+
+set -o pipefail
+: "${EVENTKIT_AZURE_LIB:="${0:A:h}/lib"}"
+source "${EVENTKIT_AZURE_LIB}/boot.zsh"
+
+typeset -g EK_VERSION="${EK_VERSION:-0.3.0}"
+
+usage() {
+  cat <<'USAGE'
+eventkit azure <verb> [options]
+
+  deploy      Provision and configure. Safe to re-run; picks up where it stopped.
+  resume      Continue an interrupted deploy without re-asking questions.
+  update      Rebuild the image and restart. No provisioning.
+  teardown    Delete the resources this ledger created.
+  status      Show the ledger beside the live resources.
+  doctor      Check tooling, sign-in and gates. Changes nothing.
+  adopt       Record an existing deployment in a ledger.
+  drift       Report where live configuration has moved away from the ledger.
+  gate ack    Acknowledge a skipped manual step until a date.
+  logs        Tail the application log.
+  open        Open the app in a browser.
+  eject       Copy the toolkit here so you can modify it.
+
+Options
+  --app NAME          Application (defaults to the name in deploy/app.conf)
+  --event SLUG        Event slug; groups applications into one resource group
+  --location REGION   Azure region (default eastus)
+  --postgres          Use Postgres instead of the SQLite default
+  --prefix P          Resource-name prefix (default "ek")
+  --state PATH        Ledger location (default .eventkit/state.json)
+  --dry-run           Print every az command; run none
+  --yes, -y           Non-interactive. Manual gates fail fast with instructions.
+  --no-reprompt       Reuse recorded answers without asking
+  --verbose, -v       Echo each az invocation
+
+Examples
+  eventkit azure deploy --event caarms-2026
+  eventkit azure deploy --event caarms-2026 --dry-run
+  eventkit azure resume --app poster-gallery
+  eventkit azure update --app poster-gallery
+  eventkit azure gate ack easy-auth --until 2026-09-01 --reason "OIT ticket 12345"
+USAGE
+}
+
+# --------------------------------------------------------------------------
+# Shared setup: read app.conf, derive names, load the ledger.
+# --------------------------------------------------------------------------
+ek_setup() {
+  local conf="${EK_CONF_PATH:-}"
+  if [[ -z "$conf" ]]; then
+    conf="$(ek_conf_find "${EK_APP:-}")" || ek_die \
+      "No deploy/app.conf found. Run from an application repository, or pass --conf PATH."
+  fi
+  ek_conf_load "$conf"
+
+  typeset -g EK_APP="${EK_APP:-$(ek_conf_get name)}"
+  typeset -g EK_IMAGE="$(ek_conf_get image "$EK_APP")"
+  typeset -g EK_EVENT="${EK_EVENT:-$(ek_state_get event)}"
+
+  if [[ -z "$EK_EVENT" ]]; then
+    ek_ask EK_EVENT "Event slug (groups this event's apps into one resource group)" "my-event-$(date +%Y)"
+  fi
+  EK_EVENT="$(ek_slug "$EK_EVENT")"
+
+  typeset -g EK_LOCATION="${EK_LOCATION:-$(ek_state_get azure.location eastus)}"
+  typeset -g EK_DB_KIND="${EK_DB_KIND:-$(ek_state_get datastore.kind "$(ek_conf_get db_default sqlite)")}"
+
+  ek_state_init "$EK_EVENT" "$EK_APP"
+  ek_env_load
+
+  # Names are derived once and then read from the ledger, so a clamped name is
+  # the same clamped name on every subsequent run.
+  local rid; rid="$(ek_random_id "${EK_EVENT}")"
+  typeset -g EK_RG="$(ek_state_get names.resourceGroup)"
+  [[ -z "$EK_RG" ]] && EK_RG="$(ek_name rg "$EK_EVENT" rg)"
+  typeset -g EK_PLAN="$(ek_state_get names.plan)"
+  [[ -z "$EK_PLAN" ]] && EK_PLAN="$(ek_name plan "$EK_EVENT" plan)"
+  typeset -g EK_ACR="$(ek_state_get names.acr)"
+  [[ -z "$EK_ACR" ]] && EK_ACR="$(ek_name acr "$EK_EVENT" "$rid")"
+  typeset -g EK_WEBAPP="$(ek_state_get names.webApp)"
+  [[ -z "$EK_WEBAPP" ]] && EK_WEBAPP="$(ek_name webapp "$EK_EVENT" "$EK_APP" "$rid")"
+  typeset -g EK_DB_SERVER="$(ek_state_get names.dbServer)"
+  [[ -z "$EK_DB_SERVER" ]] && EK_DB_SERVER="$(ek_name db "$EK_EVENT" "$EK_APP" "$rid")"
+  typeset -g EK_IDENTITY="$(ek_state_get names.ciIdentity)"
+  [[ -z "$EK_IDENTITY" ]] && EK_IDENTITY="$(ek_name identity "$EK_EVENT" "$EK_APP" ci)"
+  typeset -g EK_DB_USER="${EK_DB_USER:-ekadmin}"
+
+  ek_state_set names.resourceGroup "$EK_RG"
+  ek_state_set names.plan "$EK_PLAN"
+  ek_state_set names.acr "$EK_ACR"
+  ek_state_set names.webApp "$EK_WEBAPP"
+  ek_state_set app "$EK_APP"
+  ek_state_set event "$EK_EVENT"
+}
+
+ek_print_plan() {
+  ek_heading "${EK_APP} → ${EK_EVENT}"
+  print -r -- "  resource group  ${EK_RG}"
+  print -r -- "  location        ${EK_LOCATION}"
+  print -r -- "  registry        ${EK_ACR}"
+  print -r -- "  plan            ${EK_PLAN}"
+  print -r -- "  web app         ${EK_WEBAPP}"
+  print -r -- "  datastore       ${EK_DB_KIND}"
+  print -r -- "  ledger          ${EK_STATE_FILE}"
+  # An `if` and not `(( … )) && …`: a false arithmetic test makes the whole list
+  # non-zero, and as a function's last statement that aborts the caller under
+  # err_return. That is exactly how a plain `deploy` used to die silently right
+  # after printing this plan. See the note in lib/log.zsh.
+  if (( EK_DRY_RUN )); then
+    print -r -- "  ${EK_C_YELLOW}dry run — nothing will be created${EK_C_RESET}"
+  fi
+}
+
+# --------------------------------------------------------------------------
+# Verbs
+# --------------------------------------------------------------------------
+cmd_deploy() {
+  ek_setup
+  ek_print_plan
+  ek_state_history deploy
+  ek_steps_load
+
+  ek_blank
+  if ! (( EK_ASSUME_YES )) && ! (( EK_NO_REPROMPT )); then
+    ek_confirm "Go ahead?" y || { ek_info "Nothing done."; return 0; }
+  fi
+  ek_blank
+
+  local rc=0
+  ek_steps_run || rc=$?
+
+  ek_blank
+  ek_heading "Ledger"
+  ek_steps_report
+
+  if (( rc == 0 )); then
+    ek_blank
+    ek_ok "${EK_APP} is deployed."
+    print -r -- "   https://${EK_WEBAPP}.azurewebsites.net"
+  fi
+  return $rc
+}
+
+cmd_resume() { EK_NO_REPROMPT=1; cmd_deploy; }
+
+cmd_update() {
+  ek_setup
+  ek_heading "Updating ${EK_APP}"
+  ek_require_login
+  ek_state_history update
+
+  [[ -f Dockerfile ]] || ek_die "No Dockerfile here. Run this from the application repository."
+  ek_info "Building ${EK_IMAGE}:latest in ${EK_ACR}"
+  ek_az acr build --registry "$EK_ACR" --image "${EK_IMAGE}:latest" --file Dockerfile . -o none
+  ek_info "Restarting ${EK_WEBAPP}"
+  ek_az webapp restart --resource-group "$EK_RG" --name "$EK_WEBAPP" -o none
+
+  if ! (( EK_DRY_RUN )); then
+    local budget="${EK_VERIFY_TIMEOUT_SECONDS:-180}"
+    local interval="${EK_VERIFY_INTERVAL_SECONDS:-10}"
+    local waited=0
+    while (( waited < budget )) && ! ek_verify_app_responds; do
+      sleep "$interval"; waited=$(( waited + interval ))
+    done
+    if ek_verify_app_responds; then ek_ok "Healthy after ${waited}s."
+    else ek_warn "Still not answering after ${waited}s. Check: eventkit azure logs --app ${EK_APP}"; fi
+  fi
+}
+
+cmd_teardown() {
+  ek_setup
+  ek_heading "Teardown"
+  print -r -- "  This deletes ${EK_C_BOLD}${EK_RG}${EK_C_RESET} and everything in it,"
+  print -r -- "  which is every application deployed for ${EK_C_BOLD}${EK_EVENT}${EK_C_RESET}, not only ${EK_APP}."
+  ek_blank
+  ek_warn "Databases go too. Take a backup first if you have not:"
+  ek_dim  "  curl -H 'X-MS-CLIENT-PRINCIPAL-NAME: you@example.edu' \\"
+  ek_dim  "    https://${EK_WEBAPP}.azurewebsites.net/api/admin/db-backup > backup.json"
+  ek_blank
+
+  if ! (( EK_ASSUME_YES )); then
+    local typed
+    print -n -- "  Type the resource group name to confirm: "
+    read -r typed || typed=""
+    [[ "$typed" == "$EK_RG" ]] || { ek_info "Names did not match. Nothing deleted."; return 1; }
+  fi
+
+  ek_state_history teardown
+  ek_az group delete --name "$EK_RG" --yes --no-wait -o none
+  ek_ok "Deletion started. It runs in the background; 'az group show -n ${EK_RG}' will 404 when it finishes."
+  ek_dim "The ledger is kept, so you can see what existed. Delete ${EK_STATE_FILE} when you are done with it."
+}
+
+cmd_status() {
+  ek_setup
+  ek_print_plan
+  ek_blank
+  ek_heading "Ledger"
+  ek_steps_report
+
+  (( EK_DRY_RUN )) && return 0
+  az account show >/dev/null 2>&1 || { ek_blank; ek_warn "Not signed in, so nothing live was checked."; return 0; }
+
+  ek_blank
+  ek_heading "Live"
+  _ek_live_line "resource group" "$(ek_az_exists group show --name "$EK_RG" --query id -o tsv && print yes || print no)"
+  _ek_live_line "web app"        "$(ek_az_exists webapp show --resource-group "$EK_RG" --name "$EK_WEBAPP" --query id -o tsv && print yes || print no)"
+  _ek_live_line "easy auth"      "$(ek_verify_easy_auth && print configured || print "NOT CONFIGURED")"
+  _ek_live_line "acr pull"       "$(ek_verify_acrpull && print granted || print "not granted")"
+  _ek_live_line "healthz"        "$(ek_verify_app_responds && print ok || print "no answer")"
+}
+
+_ek_live_line() {
+  local label="$1" value="$2"
+  local colour="$EK_C_GREEN"
+  [[ "$value" == no || "$value" == "NOT CONFIGURED" || "$value" == "not granted" || "$value" == "no answer" ]] && colour="$EK_C_YELLOW"
+  printf "  %-16s %s%s%s\n" "$label" "$colour" "$value" "$EK_C_RESET"
+}
+
+cmd_doctor() {
+  ek_heading "Environment"
+  local ok=1
+  for tool in az git python3; do
+    if command -v "$tool" >/dev/null 2>&1; then ek_ok "$tool"
+    else ek_err "$tool is missing"; ok=0; fi
+  done
+  for tool in gh docker curl dig openssl; do
+    command -v "$tool" >/dev/null 2>&1 && ek_ok "$tool" || ek_warn "$tool is missing (optional)"
+  done
+  ek_az_version_check || ok=0
+
+  print -r -- ""
+  print -r -- "  toolkit ${EK_VERSION} from ${EK_ROOT}"
+
+  ek_heading "Azure"
+  if az account show >/dev/null 2>&1; then
+    ek_ok "signed in — $(az account show --query name -o tsv)"
+  else
+    ek_err "not signed in (az login)"; ok=0
+  fi
+
+  if [[ -f "${EK_CONF_PATH:-deploy/app.conf}" ]] || ek_conf_find "" >/dev/null 2>&1; then
+    ek_setup
+    ek_heading "Gates for ${EK_APP}"
+    _ek_gate_line "easy-auth" ek_verify_easy_auth
+    _ek_gate_line "auth-enabled" ek_verify_auth_enabled
+    _ek_gate_line "acrpull" ek_verify_acrpull
+    _ek_gate_line "healthz" ek_verify_app_responds
+  fi
+
+  (( ok )) || return 1
+}
+
+_ek_gate_line() {
+  local name="$1" fn="$2"
+  if "$fn" 2>/dev/null; then ek_ok "$name"; else ek_warn "$name is not satisfied"; fi
+}
+
+cmd_adopt() {
+  ek_setup
+  ek_heading "Adopting ${EK_WEBAPP}"
+  ek_require_login
+  ek_info "Reading existing resources; nothing is changed."
+
+  local rg
+  rg="$(ek_az_query webapp list --query "[?name=='${EK_WEBAPP}'].resourceGroup" -o tsv)"
+  [[ -n "$rg" ]] && { EK_RG="$rg"; ek_state_set names.resourceGroup "$rg"; ek_ok "resource group ${rg}"; }
+
+  local step
+  for step in resource-group registry plan webapp; do ek_step_record "$step" done "" "adopted"; done
+  ek_verify_acrpull && ek_step_record identity done "" "adopted"
+  ek_verify_easy_auth && ek_step_record easy-auth done "" "adopted"
+
+  ek_blank
+  ek_steps_report
+  ek_blank
+  ek_ok "Recorded in ${EK_STATE_FILE}. Commit it, then 'status' and 'drift' work against this deployment."
+}
+
+cmd_drift() {
+  ek_setup
+  ek_require_login
+  ek_heading "Drift"
+  local drifted=0
+
+  # Outbound IPs change when a plan is scaled. The database then becomes
+  # unreachable, silently — so this one is repaired rather than reported.
+  if [[ "$(ek_state_get datastore.kind)" == "postgres" ]]; then
+    ek_info "Re-syncing the database firewall to the current outbound IPs"
+    _ek_sync_db_firewall
+  fi
+
+  if ! ek_verify_easy_auth; then
+    ek_err "Easy Auth is not configured on ${EK_WEBAPP}. Admin routes are unprotected."
+    drifted=1
+  fi
+  if ! ek_verify_acrpull; then
+    ek_warn "The web app's identity cannot pull from ${EK_ACR}; the next deploy will fail."
+    drifted=1
+  fi
+
+  # An Easy Auth client secret expiring is the most likely "it broke and nobody
+  # knows why" event on a two-year horizon, and nothing else watches for it.
+  local expiry
+  expiry="$(ek_az_query webapp auth show --resource-group "$EK_RG" --name "$EK_WEBAPP" \
+    --query "identityProviders.azureActiveDirectory.registration.clientSecretSettingName" -o tsv)"
+  [[ -n "$expiry" ]] && ek_dim "  auth secret setting: ${expiry} — check its expiry in the portal"
+
+  python3 -c '
+import datetime, json, sys
+path = sys.argv[1]
+try:
+    doc = json.load(open(path))
+except FileNotFoundError:
+    raise SystemExit(0)
+today = datetime.date.today()
+for step in doc.get("steps", []):
+    if step.get("status") != "skipped":
+        continue
+    until = step.get("ackUntil")
+    if not until:
+        print(f"UNACKED {step[\"id\"]}")
+    elif datetime.date.fromisoformat(until) < today:
+        print(f"EXPIRED {step[\"id\"]} {until}")
+' "$EK_STATE_FILE" | while IFS= read -r line; do
+    ek_warn "skipped gate: ${line}"
+    drifted=1
+  done
+
+  if (( drifted )); then
+    ek_blank; ek_warn "Drift found."; return 1
+  fi
+  ek_ok "No drift."
+}
+
+cmd_gate() {
+  local action="${EK_ARGS[1]:-}" gate_id="${EK_ARGS[2]:-}"
+  [[ "$action" == "ack" ]] || ek_die "Usage: eventkit azure gate ack <id> --until YYYY-MM-DD --reason '<why>'"
+  [[ -n "$gate_id" ]] || ek_die "Which gate?"
+  [[ -n "${EK_GATE_UNTIL:-}" ]] || ek_die "--until YYYY-MM-DD is required. An acknowledgement without an expiry is just a silenced alarm."
+  [[ -n "${EK_GATE_REASON:-}" ]] || ek_die "--reason is required. Record why, and where the tracking is."
+  ek_setup
+  ek_gate_ack "$gate_id" "$EK_GATE_UNTIL" "$EK_GATE_REASON"
+  ek_ok "${gate_id} acknowledged until ${EK_GATE_UNTIL}. It will be reported again after that."
+}
+
+cmd_logs() {
+  ek_setup
+  ek_require_login
+  ek_info "Tailing ${EK_WEBAPP}. Ctrl-C to stop."
+  az webapp log tail --resource-group "$EK_RG" --name "$EK_WEBAPP"
+}
+
+cmd_open() {
+  ek_setup
+  _ek_open_url "https://${EK_WEBAPP}.azurewebsites.net"
+  ek_ok "https://${EK_WEBAPP}.azurewebsites.net"
+}
+
+cmd_eject() {
+  local dest="${EK_ARGS[1]:-./deploy/azure}"
+  mkdir -p "$dest"
+  cp -R "${EK_ROOT}/lib" "${EK_ROOT}/steps" "${EK_ROOT}/templates" "${EK_ROOT}/eventkit-azure" "$dest/"
+  ek_ok "Copied the toolkit to ${dest}."
+  ek_dim "Run it with: EVENTKIT_AZURE_LIB=${dest}/lib ${dest}/eventkit-azure deploy"
+  ek_warn "It no longer updates with eventkit. Eject only if you must diverge."
+}
+
+# --------------------------------------------------------------------------
+main() {
+  local verb="${1:-}"
+  [[ -z "$verb" || "$verb" == (-h|--help|help) ]] && { usage; return 0; }
+  shift
+
+  # Verb-specific flags, plucked out before the common parse.
+  local -a rest=()
+  while (( $# )); do
+    case "$1" in
+      --postgres)  EK_DB_KIND=postgres ;;
+      --sqlite)    EK_DB_KIND=sqlite ;;
+      --location)  shift; EK_LOCATION="$1" ;;
+      --location=*) EK_LOCATION="${1#*=}" ;;
+      --prefix)    shift; EK_PREFIX="$1" ;;
+      --prefix=*)  EK_PREFIX="${1#*=}" ;;
+      --conf)      shift; EK_CONF_PATH="$1" ;;
+      --conf=*)    EK_CONF_PATH="${1#*=}" ;;
+      --until)     shift; EK_GATE_UNTIL="$1" ;;
+      --until=*)   EK_GATE_UNTIL="${1#*=}" ;;
+      --reason)    shift; EK_GATE_REASON="$1" ;;
+      --reason=*)  EK_GATE_REASON="${1#*=}" ;;
+      *)           rest+=("$1") ;;
+    esac
+    shift
+  done
+  ek_parse_common_flags "${rest[@]}"
+
+  case "$verb" in
+    deploy)   cmd_deploy ;;
+    resume)   cmd_resume ;;
+    update)   cmd_update ;;
+    teardown) cmd_teardown ;;
+    status)   cmd_status ;;
+    doctor)   cmd_doctor ;;
+    adopt)    cmd_adopt ;;
+    drift)    cmd_drift ;;
+    gate)     cmd_gate ;;
+    logs)     cmd_logs ;;
+    open)     cmd_open ;;
+    eject)    cmd_eject ;;
+    *)        ek_err "Unknown verb: ${verb}"; ek_blank; usage; return 2 ;;
+  esac
+}
+
+main "$@"

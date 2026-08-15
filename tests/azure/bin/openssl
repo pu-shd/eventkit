@@ -1,0 +1,22 @@
+#!/bin/sh
+# Mock openssl.
+#
+# `rand -hex N` must actually produce 2N hex characters: the toolkit generates
+# webhook tokens with it, and a mock that returned nothing sent the deploy down
+# the "no value, prompt the operator" path instead — which is exactly the bug
+# this mock exists to catch, so it must be faithful about output shape.
+: "${AZ_MOCK_LOG:=/tmp/az-mock.log}"
+printf '%s %s\n' "openssl" "$*" >> "$AZ_MOCK_LOG"
+
+if [ -n "${OPENSSL_MOCK_FAIL:-}" ]; then exit 1; fi
+if [ -n "${OPENSSL_MOCK_OUT:-}" ]; then printf '%s\n' "${OPENSSL_MOCK_OUT}"; exit 0; fi
+
+if [ "$1" = "rand" ] && [ "$2" = "-hex" ]; then
+  bytes="${3:-32}"
+  # Deterministic, but distinct per call so a test can tell two generated
+  # secrets apart. od on /dev/urandom keeps this dependency-free.
+  od -vAn -tx1 -N "$bytes" /dev/urandom | tr -d ' \n'
+  printf '\n'
+  exit 0
+fi
+exit 0

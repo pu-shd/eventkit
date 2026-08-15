@@ -1,10 +1,8 @@
 """The ``eventkit`` console script.
 
-Only the verbs backed by built modules are registered. An unbuilt verb is absent
-rather than stubbed, so ``eventkit azure deploy`` fails with "not built yet in
-v0.1" instead of half-provisioning a subscription.
-
-Currently useful, and used by CI:
+Every verb here is backed by a built module. Nothing is stubbed: a verb that
+half-provisions a subscription and then reports success is worse than a verb
+that does not exist.
 
     eventkit profile validate [PATH]     exit 0/1, human-readable error report
     eventkit profile public   [PATH]     the exact JSON served at /api/event-profile
@@ -13,6 +11,7 @@ Currently useful, and used by CI:
     eventkit db init/upgrade/stamp/current   see `eventkit db --help`
     eventkit ui vendor/vendor-theme          see `eventkit ui --help`
     eventkit mirror run                      see `eventkit mirror --help`
+    eventkit azure deploy/resume/update/…    see `eventkit azure --help`
     eventkit version
 """
 
@@ -24,12 +23,6 @@ import sys
 from collections.abc import Sequence
 
 from . import __version__
-
-#: Verbs designed but not implemented in v0.1. Named explicitly so the error
-#: message tells an operator the truth rather than "invalid choice".
-NOT_YET_BUILT = {
-    "azure": "the zsh bootstrap toolkit (deploy/resume/teardown/doctor/gate)",
-}
 
 
 def _load(path: str | None):
@@ -224,14 +217,16 @@ def _cmd_mirror_run(args: argparse.Namespace) -> int:
     return report.exit_code()
 
 
-def _cmd_not_built(args: argparse.Namespace) -> int:
-    what = NOT_YET_BUILT[args.command]
-    print(
-        f"`eventkit {args.command}` is not built yet in v{__version__}: {what}.\n"
-        f"See the README's 'Not yet built' section.",
-        file=sys.stderr,
-    )
-    return 2
+def _cmd_azure(args: argparse.Namespace) -> int:
+    """Hand over to the zsh toolkit.
+
+    ``execve`` rather than ``subprocess``: the toolkit spends most of its time in
+    an interactive wait, reading single keypresses and drawing a spinner, so it
+    needs the terminal and the signal handling to be genuinely its own.
+    """
+    from .azure import exec_toolkit
+
+    return exec_toolkit(list(args.rest))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -348,10 +343,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     mirror_run.set_defaults(func=_cmd_mirror_run)
 
-    for verb, description in NOT_YET_BUILT.items():
-        placeholder = sub.add_parser(verb, help=f"(not built in v0.1) {description}")
-        placeholder.add_argument("rest", nargs="*")
-        placeholder.set_defaults(func=_cmd_not_built)
+    azure = sub.add_parser(
+        "azure",
+        help="provision and maintain an event's apps on Azure",
+        add_help=False,  # the zsh toolkit owns --help
+    )
+    azure.add_argument("rest", nargs=argparse.REMAINDER)
+    azure.set_defaults(func=_cmd_azure)
 
     return parser
 

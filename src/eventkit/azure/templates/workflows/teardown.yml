@@ -1,0 +1,82 @@
+# Delete the event's resources, after the event.
+#
+# Copy to .github/workflows/teardown.yml.
+#
+# The predecessors had a teardown script defaulting to one resource group and a
+# teardown workflow hardcoding a different one, so a local teardown and a CI
+# teardown destroyed different things. Here there is one name, it comes from the
+# ledger the toolkit wrote, and it must be typed to proceed.
+#
+# The resource group holds *every* application deployed for the event, not only
+# this one. That is the point — a conference is torn down in one operation — but
+# it means running this from one app repository removes the others too.
+
+name: Teardown
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group:
+        description: 'Type the resource group name exactly'
+        required: true
+        type: string
+      i_have_a_backup:
+        description: 'A backup has been pulled and verified'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    environment: production-admin      # required reviewers, please
+    timeout-minutes: 45
+
+    steps:
+      - name: Check the confirmations
+        run: |
+          if [[ "${{ inputs.i_have_a_backup }}" != "true" ]]; then
+            echo "::error::Databases go with the resource group and there is no undo."
+            echo "Run the Backup workflow first, then confirm here."
+            exit 1
+          fi
+          if [[ "${{ inputs.resource_group }}" != "${{ vars.AZURE_RESOURCE_GROUP }}" ]]; then
+            echo "::error::Typed '${{ inputs.resource_group }}', ledger says '${{ vars.AZURE_RESOURCE_GROUP }}'."
+            exit 1
+          fi
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: List what will go
+        run: |
+          echo "### Deleting \`${{ vars.AZURE_RESOURCE_GROUP }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          az resource list --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query "[].{name:name,type:type}" -o table | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Delete
+        run: |
+          az group delete --name "${{ vars.AZURE_RESOURCE_GROUP }}" --yes --no-wait
+          echo "Deletion started. It runs asynchronously; check the portal in a few minutes." \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      # Keeping backups after the compute is gone is the whole reason the
+      # storage account lives outside the event's resource group.
+      - name: Remind about what survives
+        run: |
+          {
+            echo ""
+            echo "Not deleted, deliberately:"
+            echo "- the backup storage account (outside this resource group)"
+            echo "- the container registry, if it is shared across events"
+            echo "- \`link-forge\` and \`poster-gallery\`, if they were deployed elsewhere —"
+            echo "  reimbursement links and the poster directory outlive the conference."
+          } >> "$GITHUB_STEP_SUMMARY"
