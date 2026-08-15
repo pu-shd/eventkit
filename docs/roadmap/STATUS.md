@@ -70,10 +70,10 @@ Every library module is built and tested: `identity`, `drupal`, `eventprofile`,
 `webhook`, `logging`, `eventbrite` (models, aggregate, client, sync), `db`, `auth`,
 `backup`, `realtime`, `notify`, `importer`, `admin`, `ui`, `mirror`, `testing`, `cli`.
 
-**833 tests, released as v0.2.0.** Applications pin it as:
+**833 tests, released as v0.2.0.** Applications currently pin:
 
 ```
-eventkit-core[app] @ https://github.com/pu-shd/eventkit/archive/refs/tags/v0.2.0.tar.gz
+eventkit-core[app] @ https://github.com/pu-shd/eventkit/archive/refs/tags/v0.3.0.tar.gz
 ```
 
 ## Phase 2 is complete
