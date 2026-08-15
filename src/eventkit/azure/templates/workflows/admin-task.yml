@@ -1,0 +1,110 @@
+# Destructive operations, run deliberately and by a named person.
+#
+# Copy to .github/workflows/admin-task.yml.
+#
+# This replaces the predecessor's `clear_data.yml`, which worked by curling
+# `POST /api/admin/clear` — a route left deliberately unauthenticated so the
+# workflow could reach it. Anyone who knew the path could post
+# `{"target":"both","confirm":"DESTROY"}` and erase every registration and
+# payment. The route is gone. The operation now runs *inside* the container,
+# reached through Azure with a federated identity, so the only way to invoke it
+# is to hold a role assignment on the resource.
+#
+# Requiring the environment `production-admin` (configure it with required
+# reviewers) means a second person approves before anything runs.
+
+name: Admin task
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Operation'
+        required: true
+        type: choice
+        options:
+          - db-revision          # print the current Alembic revision
+          - db-upgrade           # migrate to head
+          - identity-drift       # compare this app's roster against a backup
+          - clear-data           # DESTRUCTIVE
+      confirm:
+        description: 'For clear-data only: type the web app name exactly'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Gate on an environment with required reviewers. Without that, this
+    # workflow is only as strong as one person's GitHub session.
+    environment: production-admin
+    timeout-minutes: 20
+
+    steps:
+      - name: Refuse an unconfirmed destructive task
+        if: inputs.task == 'clear-data'
+        run: |
+          if [[ "${{ inputs.confirm }}" != "${{ vars.AZURE_WEBAPP_NAME }}" ]]; then
+            echo "::error::clear-data needs the web app name typed exactly into 'confirm'."
+            exit 1
+          fi
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # A snapshot first, always — including for the read-only tasks, because
+      # the cheapest moment to have one is before you find out you needed it.
+      - name: Snapshot before touching anything
+        run: |
+          set -euo pipefail
+          token=$(az account get-access-token --resource "${{ vars.AZURE_CLIENT_ID }}" --query accessToken -o tsv)
+          stamp=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          curl -sSf --max-time 300 -H "Authorization: Bearer ${token}" \
+            "https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/admin/db-backup" \
+            -o "pre-${{ inputs.task }}-${stamp}.json"
+          az storage blob upload \
+            --account-name "${{ vars.BACKUP_STORAGE_ACCOUNT }}" \
+            --container-name "${{ vars.BACKUP_CONTAINER || 'backups' }}" \
+            --name "pre-${{ inputs.task }}-${stamp}.json" \
+            --file "pre-${{ inputs.task }}-${stamp}.json" \
+            --auth-mode login --overwrite false -o none
+          echo "Snapshot: pre-${{ inputs.task }}-${stamp}.json" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run it in the container
+        run: |
+          set -euo pipefail
+          case "${{ inputs.task }}" in
+            db-revision)     cmd="python -m ${{ vars.PACKAGE_NAME }}.cli db revision" ;;
+            db-upgrade)      cmd="python -m ${{ vars.PACKAGE_NAME }}.cli db upgrade" ;;
+            identity-drift)  cmd="python -m ${{ vars.PACKAGE_NAME }}.cli identity-drift" ;;
+            clear-data)      cmd="python -m ${{ vars.PACKAGE_NAME }}.cli clear --confirm ${{ vars.AZURE_WEBAPP_NAME }}" ;;
+            *) echo "::error::unknown task"; exit 1 ;;
+          esac
+          # SSH into the running container. This is the App Service equivalent
+          # of `docker exec`; it needs no inbound route on the application.
+          az webapp ssh \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --command "$cmd" | tee task-output.txt
+
+      - name: Record who did what
+        if: always()
+        run: |
+          {
+            echo "### ${{ inputs.task }}"
+            echo ""
+            echo "- requested by: @${{ github.actor }}"
+            echo "- app: ${{ vars.AZURE_WEBAPP_NAME }}"
+            echo "- result: ${{ job.status }}"
+            echo ""
+            echo '```'
+            tail -c 4000 task-output.txt 2>/dev/null || echo '(no output)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

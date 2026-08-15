@@ -1,0 +1,100 @@
+# Nightly snapshot. Not optional.
+#
+# Copy to .github/workflows/backup.yml.
+#
+# SQLite on /home has no point-in-time restore and no server-side backup, so
+# "the free datastore" otherwise quietly means "no backups". That is exactly the
+# failure the predecessors' hand-rolled dump tool invited: its dumps covered two
+# tables of four, so restoring one silently wiped saved groups and swag
+# inventory. This pulls the application's own unified backup format — every
+# table the app declares — and puts it in a storage account with a lifecycle
+# rule.
+#
+# The backup route requires an authenticated principal, so CI reaches it the
+# same way an operator would: through the front door with a token minted for the
+# managed identity, never via an unauthenticated path opened for convenience.
+
+name: Backup
+
+on:
+  schedule:
+    - cron: '17 6 * * *'      # 06:17 UTC — off the hour, so not in the stampede
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pull the backup
+        id: pull
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          name="${{ vars.AZURE_WEBAPP_NAME }}-${stamp}.json"
+          token=$(az account get-access-token \
+                    --resource "${{ vars.AZURE_CLIENT_ID }}" \
+                    --query accessToken -o tsv)
+          code=$(curl -sS -o "$name" -w '%{http_code}' --max-time 300 \
+                   -H "Authorization: Bearer ${token}" \
+                   "https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net/api/admin/db-backup")
+          if [[ "$code" != "200" ]]; then
+            echo "::error::Backup route answered ${code}"
+            head -c 400 "$name" || true
+            exit 1
+          fi
+          # An empty or truncated file is worse than no file: it looks like a
+          # backup until the day it is needed.
+          python3 - "$name" <<'PY'
+          import json, sys
+          with open(sys.argv[1]) as fh:
+              doc = json.load(fh)
+          counts = doc.get("manifest", {}).get("row_counts", {})
+          if not counts:
+              sys.exit("backup carries no row counts; refusing to store it")
+          print("rows:", counts)
+          PY
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Store it
+        run: |
+          az storage blob upload \
+            --account-name "${{ vars.BACKUP_STORAGE_ACCOUNT }}" \
+            --container-name "${{ vars.BACKUP_CONTAINER || 'backups' }}" \
+            --name "${{ steps.pull.outputs.name }}" \
+            --file "${{ steps.pull.outputs.name }}" \
+            --auth-mode login --overwrite false -o none
+
+      - name: Note it
+        run: |
+          echo "Stored \`${{ steps.pull.outputs.name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "A backup file is a full export of everyone's personal data. Treat the storage account accordingly." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open an issue if this failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'Nightly backup failed';
+            const { data } = await github.rest.issues.listForRepo({
+              ...context.repo, state: 'open', labels: 'backup',
+            });
+            const body = `The backup job failed: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            if (data.some(i => i.title === title)) {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: data.find(i => i.title === title).number, body,
+              });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body, labels: ['backup'] });
+            }

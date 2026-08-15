@@ -1,0 +1,77 @@
+#!/bin/sh
+# A stand-in for the Azure CLI.
+#
+# Records every invocation to $AZ_MOCK_LOG and replays canned output from
+# $AZ_MOCK_FIXTURES, so the whole deploy flow can be exercised with no
+# subscription, no network and no credentials. Without this the toolkit would be
+# the one part of the stack nobody could test.
+#
+# A fixture is a file named after the argument vector with non-alphanumerics
+# collapsed to underscores; the longest matching prefix wins, so a fixture can
+# answer a family of calls.
+#
+# Reads reflect prior writes. `webapp identity show` answers with a principal id
+# only once `webapp identity assign` has been called, `acr show` only once the
+# registry has been created, and so on. Without that, a greenfield deploy could
+# never be distinguished from a re-run: either every resource looks like it
+# already exists (so nothing is ever created) or a resource stays invisible
+# immediately after being created (so the identity step cannot find the
+# principal it just assigned). Both were real failures of the earlier mock.
+
+set -e
+
+: "${AZ_MOCK_LOG:=/tmp/az-mock.log}"
+: "${AZ_MOCK_FIXTURES:=}"
+
+# Read the log before appending, so a call never counts as its own precondition.
+prior=""
+[ -f "$AZ_MOCK_LOG" ] && prior=$(cat "$AZ_MOCK_LOG")
+
+printf '%s\n' "$*" >> "$AZ_MOCK_LOG"
+
+# A scenario can force a failure for one command family.
+if [ -n "${AZ_MOCK_FAIL:-}" ]; then
+  case "$*" in
+    ${AZ_MOCK_FAIL}*) echo "mock: forced failure for '$*'" >&2; exit 1 ;;
+  esac
+fi
+
+if [ -z "$AZ_MOCK_FIXTURES" ]; then
+  exit 0
+fi
+
+# Which write has to have happened for this read to return anything.
+needs=""
+case "$*" in
+  "group show"*)                     needs="group create" ;;
+  "acr show"*)                       needs="acr create" ;;
+  "appservice plan show"*)           needs="appservice plan create" ;;
+  "webapp show"*)                    needs="webapp create" ;;
+  "webapp identity show"*)           needs="webapp identity assign" ;;
+  "role assignment list"*)           needs="role assignment create" ;;
+  "postgres flexible-server show"*)  needs="postgres flexible-server create" ;;
+  "identity show"*)                  needs="identity create" ;;
+esac
+
+if [ -n "$needs" ]; then
+  case "$prior" in
+    *"$needs"*) ;;
+    *) exit 0 ;;
+  esac
+fi
+
+slug=$(printf '%s' "$*" | tr -cs 'A-Za-z0-9' '_' | sed 's/_$//')
+
+# Longest prefix wins: trim a trailing token at a time until a fixture matches.
+candidate="$slug"
+while [ -n "$candidate" ]; do
+  if [ -f "$AZ_MOCK_FIXTURES/$candidate" ]; then
+    cat "$AZ_MOCK_FIXTURES/$candidate"
+    exit 0
+  fi
+  next=${candidate%_*}
+  [ "$next" = "$candidate" ] && break
+  candidate=$next
+done
+
+exit 0

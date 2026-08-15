@@ -1,0 +1,163 @@
+# Ship a new image for one event application.
+#
+# Copy to .github/workflows/deploy.yml in an application repository. The
+# variables it reads are written by `eventkit azure deploy` (the `oidc` step),
+# so there is nothing to fill in by hand and nothing to paste into Settings.
+#
+# Two rules this workflow exists to enforce:
+#
+#   1. No stored credential. A user-assigned managed identity with a federated
+#      credential trusts GitHub's OIDC token for this repository and this ref.
+#      There is no client secret to expire, rotate, or leak. The identity can
+#      push to the registry and restart this one web app — not Contributor on
+#      the resource group, which is what the predecessor granted.
+#
+#   2. CI never writes application settings. The toolkit is the only writer.
+#      In the predecessors they were set in both the deploy script and the
+#      deploy workflow and had already drifted three ways on the admin
+#      allow-list alone. If a setting needs to change, run
+#      `eventkit azure deploy` — it is idempotent and will change only that.
+#
+# The image is tagged with the commit SHA and also moved to `latest`, so a
+# rollback is `az webapp config container set --container-image-name …:<sha>`
+# against a tag that still exists.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', '.eventkit/**']
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Existing image tag to roll back to (blank builds HEAD)'
+        required: false
+        type: string
+
+concurrency:
+  # Never let two deploys race for the same web app; cancel the older one.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write        # required to request the OIDC token
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the toolkit has run
+        run: |
+          missing=()
+          for v in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID \
+                   AZURE_RESOURCE_GROUP AZURE_WEBAPP_NAME ACR_NAME; do
+            [[ -n "${!v}" ]] || missing+=("$v")
+          done
+          if (( ${#missing[@]} )); then
+            echo "::error::Missing repository variables: ${missing[*]}"
+            echo "Run: eventkit azure deploy --app <app>   (its oidc step sets these)"
+            exit 1
+          fi
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_WEBAPP_NAME: ${{ vars.AZURE_WEBAPP_NAME }}
+          ACR_NAME: ${{ vars.ACR_NAME }}
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve the image tag
+        id: tag
+        run: |
+          if [[ -n "${{ inputs.image_tag }}" ]]; then
+            echo "tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sign in to the registry
+        run: az acr login --name "${{ vars.ACR_NAME }}"
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.tag.outputs.build == 'true'
+
+      # buildx here, `az acr build` in the local `eventkit azure update`. Both
+      # are supported and produce equivalent images; CI uses buildx because it
+      # already has a daemon and gets layer caching from it.
+      - uses: docker/build-push-action@v6
+        if: steps.tag.outputs.build == 'true'
+        with:
+          context: .
+          target: runtime
+          push: true
+          provenance: false
+          tags: |
+            ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}:${{ steps.tag.outputs.tag }}
+            ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify the tag exists before pointing the app at it
+        run: |
+          az acr manifest list-metadata \
+            --registry "${{ vars.ACR_NAME }}" \
+            --name "${{ vars.IMAGE_NAME || github.event.repository.name }}" \
+            --query "[?contains(tags, '${{ steps.tag.outputs.tag }}')] | [0].digest" -o tsv \
+            | grep -q . || { echo "::error::No such image tag"; exit 1; }
+
+      - name: Point the web app at it
+        run: |
+          az webapp config container set \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_WEBAPP_NAME }}" \
+            --container-image-name "${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}:${{ steps.tag.outputs.tag }}" \
+            --container-registry-url "https://${{ vars.ACR_NAME }}.azurecr.io" \
+            -o none
+          az webapp restart \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_WEBAPP_NAME }}" -o none
+
+      - name: Wait for it to answer
+        run: |
+          url="https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net${{ vars.HEALTH_PATH || '/healthz' }}"
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+            if [[ "$code" == "200" ]]; then
+              echo "healthy after $(( i * 15 ))s"
+              exit 0
+            fi
+            echo "  $url -> ${code:-no answer} (${i}/40)"
+            sleep 15
+          done
+          echo "::error::Never answered 200. Logs: az webapp log tail -g ${{ vars.AZURE_RESOURCE_GROUP }} -n ${{ vars.AZURE_WEBAPP_NAME }}"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ${{ vars.AZURE_WEBAPP_NAME }}"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| image tag | \`${{ steps.tag.outputs.tag }}\` |"
+            echo "| built | ${{ steps.tag.outputs.build }} |"
+            echo "| url | https://${{ vars.AZURE_WEBAPP_NAME }}.azurewebsites.net |"
+            echo ""
+            echo "Roll back: re-run this workflow with \`image_tag\` set to a previous SHA."
+          } >> "$GITHUB_STEP_SUMMARY"

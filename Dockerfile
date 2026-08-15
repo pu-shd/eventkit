@@ -27,7 +27,11 @@ RUN pip install --no-cache-dir -e ".[test]"
 FROM deps AS test
 # nodejs/npm are confined to this stage (never the runtime stage below) —
 # vitest+jsdom is the eventkit.ui JS test suite's only reason to need Node.
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+# nodejs/npm for the eventkit.ui JS suite; zsh/bats/shellcheck for the Azure
+# toolkit's. Shell that is never executed in CI is how the predecessors shipped
+# a line continuation that silently dropped half the app settings.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      nodejs npm zsh bats shellcheck curl \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
 # `-e` above already installed the package; reinstall so entry points pick up

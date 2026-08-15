@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from eventkit.cli import NOT_YET_BUILT, main
+from eventkit.cli import main
 
 EXAMPLE = Path(__file__).resolve().parents[2] / "examples" / "caarms-2026" / (
     "event-profile.yaml"
@@ -253,17 +253,100 @@ class TestUiCommands:
         assert "problem(s)" in capsys.readouterr().err
 
 
-class TestUnbuiltVerbs:
-    @pytest.mark.parametrize("verb", sorted(NOT_YET_BUILT))
-    def test_unbuilt_verb_is_honest_and_exits_two(self, verb, capsys):
-        assert main([verb]) == 2
-        err = capsys.readouterr().err
-        assert "not built yet" in err
-        assert "Not yet built" in err
 
-    def test_no_verb_half_provisions_anything(self):
-        # `eventkit azure deploy` must not silently do part of a deployment.
-        assert main(["azure", "deploy"]) == 2
+class TestAzureHandover:
+    """`eventkit azure` hands the terminal to the zsh toolkit.
+
+    It does so with os.execve, which *replaces* this process — that is what
+    makes signals, exit codes and terminal control behave as if the operator had
+    run the script directly, and an interactive manual-step gate depends on it.
+    It also means a test that lets the call through replaces the pytest process
+    mid-run, which is exactly what an earlier version of this file did.
+    """
+
+    def test_it_execs_the_toolkit_with_the_verb_intact(self, monkeypatch):
+        from eventkit import azure
+
+        captured = {}
+
+        def fake_execve(path, argv, env):
+            captured["path"] = path
+            captured["argv"] = argv
+            captured["env"] = env
+            raise SystemExit(0)
+
+        monkeypatch.setattr(azure.os, "execve", fake_execve)
+        monkeypatch.setattr(azure.shutil, "which", lambda _: "/bin/zsh")
+
+        with pytest.raises(SystemExit):
+            main(["azure", "deploy", "--event", "caarms-2026", "--dry-run"])
+
+        assert captured["path"] == "/bin/zsh"
+        assert captured["argv"][1].endswith("eventkit-azure")
+        assert captured["argv"][2:] == ["deploy", "--event", "caarms-2026", "--dry-run"]
+        # The toolkit finds its own library through the environment, so an
+        # ejected copy and the packaged one cannot get crossed.
+        assert captured["env"]["EVENTKIT_AZURE_LIB"].endswith("/lib")
+
+    def test_flags_are_not_eaten_by_the_python_argument_parser(self, monkeypatch):
+        """--yes belongs to the toolkit, not to argparse."""
+        from eventkit import azure
+
+        captured = {}
+        monkeypatch.setattr(azure.shutil, "which", lambda _: "/bin/zsh")
+        monkeypatch.setattr(
+            azure.os,
+            "execve",
+            lambda p, argv, env: captured.setdefault("argv", argv) and None,
+        )
+        try:
+            main(["azure", "status", "--yes", "-v"])
+        except SystemExit:
+            pass
+        assert captured["argv"][2:] == ["status", "--yes", "-v"]
+
+    def test_it_says_so_when_zsh_is_absent(self, monkeypatch, capsys):
+        from eventkit import azure
+
+        monkeypatch.setattr(azure.shutil, "which", lambda _: None)
+        assert azure.exec_toolkit(["deploy"]) == 127
+        assert "zsh" in capsys.readouterr().out
+
+    def test_the_toolkit_is_present_in_the_installed_package(self):
+        """A wheel that omits the package data is a toolkit nobody can run."""
+        from eventkit import azure
+
+        assert azure.script_path().is_file()
+        assert (azure.lib_path() / "manual.zsh").is_file()
+        assert (azure.templates_path() / "app.conf.example").is_file()
+        assert (azure.templates_path() / "workflows" / "deploy.yml").is_file()
+
+    def test_every_shipped_workflow_avoids_storing_a_credential(self):
+        """The templates authenticate with a federated identity. A template that
+        reads an Azure secret would teach the opposite of the whole design."""
+        from eventkit import azure
+
+        for path in sorted((azure.templates_path() / "workflows").glob("*.yml")):
+            text = path.read_text(encoding="utf-8")
+            assert "AZURE_CREDENTIALS" not in text, path.name
+            assert "secrets.AZURE" not in text, path.name
+            if "azure/login" in text:
+                assert "id-token: write" in text, path.name
+
+    def test_the_example_app_conf_is_valid_toml(self):
+        """It shipped once with `name = \"X\"; type = \"computed\"` on one line,
+        which is a syntax error, to five repositories at once."""
+        import tomllib
+
+        from eventkit import azure
+
+        with (azure.templates_path() / "app.conf.example").open("rb") as fh:
+            conf = tomllib.load(fh)
+        assert conf["name"]
+        assert {s["name"] for s in conf["setting"]} >= {
+            "DATABASE_URL",
+            "WEBSITES_CONTAINER_START_TIME_LIMIT",
+        }
 
 
 class TestVersion:
