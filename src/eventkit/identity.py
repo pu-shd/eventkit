@@ -244,6 +244,20 @@ def _build_identity_mixin() -> type:
     from sqlalchemy import Integer, String
     from sqlalchemy.orm import Mapped, declarative_mixin, mapped_column
 
+    # This module uses PEP 563 string annotations, so `Mapped[str]` below is the
+    # *text* "Mapped[str]" until something resolves it. SQLAlchemy resolves a
+    # mixin's annotations against `sys.modules[cls.__module__].__dict__` — this
+    # module's globals — at the moment an application subclasses the mixin. The
+    # imports above are function-locals, so without this the resolution fails
+    # with "Could not interpret annotation Mapped[str]" in the *application's*
+    # traceback, pointing at the app's model rather than at this line.
+    #
+    # Publishing the names here keeps SQLAlchemy an optional import (nothing is
+    # imported until first access) while making the annotations resolvable.
+    globals().update(
+        {"Mapped": Mapped, "String": String, "Integer": Integer}
+    )
+
     @declarative_mixin
     class IdentityMixin:
         """Person-shaped columns shared by every app's roster model.

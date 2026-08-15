@@ -14,6 +14,8 @@ from __future__ import annotations
 import hashlib
 
 import pytest
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
 
 from eventkit.identity import (
     PERSON_KEY_VERSION,
@@ -254,3 +256,59 @@ class TestIdentityMixinIsLazy:
 
         with pytest.raises(AttributeError):
             _ = identity.NoSuchThing
+
+
+class TestIdentityMixinIsUsableByAnApplication:
+    """Regression: the mixin's annotations must resolve in a *subclass*.
+
+    ``eventkit.identity`` uses PEP 563 string annotations, and the SQLAlchemy
+    names are function-locals inside the lazy builder. SQLAlchemy resolves a
+    mixin's annotations against its defining module's globals at the moment an
+    application maps a subclass — so without the names being published there,
+    every app that inherits IdentityMixin dies with
+
+        MappedAnnotationError: Could not interpret annotation Mapped[str]
+
+    reported against the *application's* model, which makes it look like the
+    app's bug. Found by building the first application on top of the library.
+    """
+
+    def test_a_subclass_maps_and_round_trips(self):
+        from eventkit.db import Database, declarative_base
+        from eventkit.identity import IdentityMixin
+
+        Base = declarative_base()
+
+        class Roster(IdentityMixin, Base):
+            __tablename__ = "roster_annotation_check"
+            note: Mapped[str | None] = mapped_column(String(64), default=None)
+
+        db = Database("sqlite:///:memory:")
+        Base.metadata.create_all(db.engine)
+
+        with db.session() as s:
+            s.add(Roster(person_key="pk-1", email_address="ada@example.edu", first_name="Ada"))
+            s.commit()
+            row = s.get(Roster, "pk-1")
+            assert row.first_name == "Ada"
+            assert row.full_name == "Ada"
+
+    def test_mixin_columns_are_present_on_the_subclass(self):
+        from eventkit.db import declarative_base
+        from eventkit.identity import IdentityMixin
+
+        Base = declarative_base()
+
+        class Roster2(IdentityMixin, Base):
+            __tablename__ = "roster_columns_check"
+
+        cols = set(Roster2.__table__.columns.keys())
+        assert {
+            "person_key",
+            "drupal_uuid",
+            "drupal_sid",
+            "serial_number",
+            "email_address",
+            "first_name",
+            "last_name",
+        } <= cols
