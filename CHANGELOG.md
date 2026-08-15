@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Removed
+
+- **gitleaks, and every third-party GitHub Action.** CI is now shell commands
+  plus GitHub's own `actions/*` and Microsoft's `azure/login`, which performs the
+  OIDC exchange against the deployment target. Secret scanning is `grep` over six
+  credential shapes — private keys, cloud access key ids, provider tokens,
+  connection strings, and client-secret and password literals — verified both to
+  fire on planted secrets and to stay quiet on `password = os.environ[...]`. The
+  named checks for values this codebase has actually leaked are unchanged.
+  `.gitleaks.toml` is deleted.
+- `docker/setup-buildx-action` and `docker/build-push-action` from the shipped CI
+  templates, in favour of plain `docker build` and `docker push`. The runner
+  already has a daemon; the cost is Actions layer caching, the gain is that
+  nothing third-party stands between a commit and the image that runs in
+  production.
+
 ## 0.3.0
 
 Phase 2: the Azure bootstrap toolkit.

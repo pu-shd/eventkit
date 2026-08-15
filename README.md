@@ -10,9 +10,9 @@ disagreed with each other, six copies of one affiliation rule, two hand-written
 backup formats, and eighteen imperative authorization checks any one of which
 could be forgotten by the next handler someone added.
 
-**Status: v0.1.0, in extraction.** The modules below are built and tested. The
-rest are listed under [Not yet built](#not-yet-built) with nothing stubbed — an
-absent module is better than one that imports and misbehaves.
+**Status: v0.3.0.** Every module below is built and tested, and so is the
+`eventkit azure` deployment toolkit. Nothing is stubbed: an absent verb is
+better than one that half-provisions a subscription and reports success.
 
 ---
 
@@ -156,15 +156,18 @@ The templates in [`docs/drupal/templates/`](docs/drupal/templates/) are verified
 against this library's own parser by `tests/unit/drupal/test_doc_templates.py`,
 so they cannot drift from the code that reads them.
 
-## What is not built
+## What is not here
 
-The library is complete for v0.2. What remains is **outside** this repository:
+The library and the Azure toolkit are complete. What remains lives in other
+repositories:
 
-| Not here | Where it goes |
+| Not here | Where |
 |---|---|
-| The five applications | Their own repositories, listed above. |
+| The five applications | Their own repositories, listed above |
+| Webform exports, Remote Post recipes, field-map contracts | [`drupal-event-forms`](https://github.com/pu-shd/drupal-event-forms) |
+| Architecture, runbook, security and privacy for the whole stack | [`event-stack`](https://github.com/pu-shd/event-stack) |
 
-The CLI covers the parts that exist:
+The CLI:
 
 ```sh
 eventkit profile validate event-profile.yaml   # OK  CAARMS 2026  slug=caarms-2026  …

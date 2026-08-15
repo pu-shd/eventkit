@@ -177,7 +177,20 @@ way.
 throughout, written before the org was named. The two predecessor repos are under
 `pubino`. Read `pu-sherrerd` in `PLAN.md` as `pu-shd`.
 
-**Two deviations from `PLAN.md`,** both deliberate:
+**No third-party CI tooling.** `PLAN.md` phase 0 called for `gitleaks` on every
+PR. It is gone, along with every marketplace action — `gitleaks/gitleaks-action`
+(which also wants a paid licence on an organization-owned repository),
+`astral-sh/ruff-action`, `docker/setup-buildx-action`, `docker/build-push-action`.
+What runs now is shell plus GitHub's own `actions/*` and Microsoft's
+`azure/login`, which performs the OIDC exchange against the deployment target.
+
+Secret scanning is `grep` over six credential shapes: private keys, cloud access
+key ids, provider tokens, connection strings, and client-secret and password
+literals. It was verified in both directions — it fires on planted secrets, and
+it stays quiet on `password = os.environ[...]` and on placeholders. The named
+checks for the values this codebase has actually leaked are unchanged.
+
+**Three deviations from `PLAN.md`,** all deliberate:
 
 1. v0.1 ships one distribution, not three. A codeload tarball builds whatever the
    root `pyproject.toml` declares, so the three-way split only becomes real at

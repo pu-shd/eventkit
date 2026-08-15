@@ -84,6 +84,8 @@ team with API access, and Azure for GitOps deployment.
   workflows, and `CODEOWNERS` on `migrations/`, `contracts/`, and `.eventkit/`.
 - CI grep that fails on `@princeton.edu` outside `examples/` and `themes/princeton-orfe/`, plus
   `gitleaks` on every PR.
+  **Superseded:** no third-party scanners or marketplace actions. The greps stayed and were
+  extended to the generic credential shapes; gitleaks was removed. See `STATUS.md`.
 
 ## Phase 1 — `eventkit` v0.1, proved in place (1–2 weeks)
 

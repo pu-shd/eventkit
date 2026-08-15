@@ -1,7 +1,7 @@
 # Roadmap
 
-The remaining work on the event-management stack: one document per phase, ordered
-by dependency.
+One document per phase, ordered by dependency. **Phases 0–7 are built**; phase 8
+is in progress. The table below says where each one landed.
 
 This exists so the project can be picked up on another machine from a clone alone.
 Everything needed is in the repository; nothing lives in a local scratch directory.
@@ -29,21 +29,21 @@ Ordered by dependency. Each was one PR; the two superseded numbers are noted
 because GitHub closes a PR when its base branch is deleted, and a PR closed that
 way can be neither reopened nor retargeted.
 
-| # | Document | Phase | Depends on | PR |
+| # | Document | Phase | Status | Where it landed |
 |---|---|---|---|---|
-| 0 | [`PLAN.md`](PLAN.md), [`STATUS.md`](STATUS.md) | Plan, index, status | — | #1 |
-| 1 | [`phase-01-eventkit-modules.md`](phase-01-eventkit-modules.md) | Finish the eventkit library: `auth`, `db`, `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`, `eventbrite.client`/`sync`, `ui` | 0 | #11 (was #2) |
-| 2 | [`phase-02-azure-toolkit.md`](phase-02-azure-toolkit.md) | The zsh bootstrap toolkit: `deploy`/`resume`/`update`/`teardown` with polling manual-step gates | 1 | #10 (was #3) |
-| 3 | [`phase-03-poster-gallery.md`](phase-03-poster-gallery.md) | First app extraction — the proof case | 2 | #4 |
-| 4 | [`phase-04-ticket-reconciler.md`](phase-04-ticket-reconciler.md) | Reconciliation, check-in, swag | 3 | #5 |
-| 5 | [`phase-05-nametag-press.md`](phase-05-nametag-press.md) | Avery badge PDFs | 4 | #6 |
-| 6 | [`phase-06-lodging-planner.md`](phase-06-lodging-planner.md) | Rooms, rules engine, concurrency | 5 | #7 |
-| 7 | [`phase-07-link-forge.md`](phase-07-link-forge.md) | Prefilled per-person links, stateless | 6 | #8 |
-| 8 | [`phase-08-content-repos.md`](phase-08-content-repos.md) | `drupal-event-forms` and `event-stack`, then archiving | 7 | #9 |
+| 0 | [`PLAN.md`](PLAN.md), [`STATUS.md`](STATUS.md) | Plan, index, status | done | PR #1 |
+| 1 | [`phase-01-eventkit-modules.md`](phase-01-eventkit-modules.md) | Finish the eventkit library: `auth`, `db`, `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`, `eventbrite.client`/`sync`, `ui` | **done** | `v0.2.0` |
+| 2 | [`phase-02-azure-toolkit.md`](phase-02-azure-toolkit.md) | The zsh bootstrap toolkit: `deploy`/`resume`/`update`/`teardown` with polling manual-step gates | **done** | `v0.3.0`, PR #15 |
+| 3 | [`phase-03-poster-gallery.md`](phase-03-poster-gallery.md) | First app extraction — the proof case | **done** | [`poster-gallery`](https://github.com/pu-shd/poster-gallery) |
+| 4 | [`phase-04-ticket-reconciler.md`](phase-04-ticket-reconciler.md) | Reconciliation, check-in, swag | **done** | [`ticket-reconciler`](https://github.com/pu-shd/ticket-reconciler) |
+| 5 | [`phase-05-nametag-press.md`](phase-05-nametag-press.md) | Avery badge PDFs | **done** | [`nametag-press`](https://github.com/pu-shd/nametag-press) |
+| 6 | [`phase-06-lodging-planner.md`](phase-06-lodging-planner.md) | Rooms, rules engine, concurrency | **done** | [`lodging-planner`](https://github.com/pu-shd/lodging-planner) |
+| 7 | [`phase-07-link-forge.md`](phase-07-link-forge.md) | Prefilled per-person links, stateless | **done** | [`link-forge`](https://github.com/pu-shd/link-forge) |
+| 8 | [`phase-08-content-repos.md`](phase-08-content-repos.md) | `drupal-event-forms` and `event-stack`, then archiving | in progress | — |
 
-**Nothing in phases 1–8 is built yet.** These are plans of work, not descriptions of
-existing code. What *is* built is listed in [`STATUS.md`](STATUS.md) and in the
-top-level README.
+The phase documents are the **plans as written**, kept as the record of intent.
+Where the built thing diverged from the plan, [`STATUS.md`](STATUS.md) says so
+and why — read it alongside, not instead.
 
 ## Documents
 
