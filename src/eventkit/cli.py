@@ -12,6 +12,7 @@ Currently useful, and used by CI:
     eventkit fieldmap check   [PATH]     resolve a field map and report unmapped risk
     eventkit db init/upgrade/stamp/current   see `eventkit db --help`
     eventkit ui vendor/vendor-theme          see `eventkit ui --help`
+    eventkit mirror run                      see `eventkit mirror --help`
     eventkit version
 """
 
@@ -28,7 +29,6 @@ from . import __version__
 #: message tells an operator the truth rather than "invalid choice".
 NOT_YET_BUILT = {
     "azure": "the zsh bootstrap toolkit (deploy/resume/teardown/doctor/gate)",
-    "mirror": "build-time Drupal asset mirroring",
 }
 
 
@@ -206,6 +206,24 @@ def _cmd_ui_vendor_theme(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mirror_run(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    import yaml
+
+    from .mirror import MirrorSpec, bypass_header_from_env, mirror
+
+    spec = MirrorSpec.model_validate(yaml.safe_load(Path(args.spec).read_text(encoding="utf-8")))
+    bypass = bypass_header_from_env()
+    if bypass is not None:
+        spec = spec.model_copy(update={"bypass_header": bypass})
+
+    report = mirror(spec, Path(args.dest), force=args.force)
+    if not args.quiet:
+        print(report.render())
+    return report.exit_code()
+
+
 def _cmd_not_built(args: argparse.Namespace) -> int:
     what = NOT_YET_BUILT[args.command]
     print(
@@ -313,6 +331,22 @@ def build_parser() -> argparse.ArgumentParser:
     ui_vendor_theme.add_argument("path", nargs="?", default=None, help="event-profile.yaml path")
     ui_vendor_theme.add_argument("--out", default=None, help="write to this file instead of stdout")
     ui_vendor_theme.set_defaults(func=_cmd_ui_vendor_theme)
+
+    mirror = sub.add_parser("mirror", help="build-time asset mirroring")
+    mirror_sub = mirror.add_subparsers(dest="subcommand", required=True)
+
+    mirror_run = mirror_sub.add_parser(
+        "run", help="fetch a mirror spec's assets into a destination directory"
+    )
+    mirror_run.add_argument("--spec", required=True, help="path to a mirror-spec YAML file")
+    mirror_run.add_argument("--dest", required=True, help="destination directory")
+    mirror_run.add_argument(
+        "--force", action="store_true", help="re-fetch every asset, even if already present"
+    )
+    mirror_run.add_argument(
+        "--quiet", action="store_true", help="suppress the report (exit code still reflects it)"
+    )
+    mirror_run.set_defaults(func=_cmd_mirror_run)
 
     for verb, description in NOT_YET_BUILT.items():
         placeholder = sub.add_parser(verb, help=f"(not built in v0.1) {description}")

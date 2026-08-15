@@ -217,7 +217,7 @@ surprising, the original wins and the surprise is documented:
 - `eventkit-core`'s availability on PyPI is unverified (no network access). The
   bare `eventkit` name is taken; v0.1 installs from a GitHub tarball, so the
   distribution name is not yet load-bearing.
-- Not built: `mirror` and the `azure` toolkit.
+- Not built: the `azure` toolkit.
 - `eventkit.eventbrite.sync` does not fire `pending_payment`/
   `exempt_registration` — those trigger at registrant-ingestion time
   (`tickets_sold_separately`, per `eventprofile.models.Ticketing.is_exempt`),
