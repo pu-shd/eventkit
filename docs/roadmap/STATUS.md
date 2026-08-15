@@ -65,15 +65,19 @@ contains operational detail about what was a live deployment). What remains:
 ## Decisions taken, so they are not re-opened
 
 **The WAF bypass header stays as it is.** WDS operates one shared bypass header
-and there is no per-consumer secret to be had, so `x-wdsoit-bot-bypass` is the
-only mechanism available. Accepted as a known limitation rather than treated as
-an open question.
+and there is no per-consumer secret to be had, so it is the only mechanism
+available. Accepted as a known limitation rather than treated as an open
+question.
+
+(The header is not named here. Writing this paragraph tripped the repository's
+own hygiene check, which is the check behaving correctly: a bypass whose only
+secret is its name is published the moment the name is, so it does not go in a
+public repository even inside a note explaining why it is a problem.)
 
 Its practical consequences are unchanged and already enforced: the header value
 comes from an environment variable with **no default**, asset mirroring is
 build-time and opt-in rather than something that runs on every application boot,
-and `drupal-event-forms`' `tools/redact.py` rejects the header **name** — because
-a bypass whose only secret is its name is published the moment the name is.
+and `drupal-event-forms`' `tools/redact.py` rejects the header **name**.
 
 **The nine speaker prefill tokens were not rotated; the copies were destroyed.**
 No event is running, so there is nothing for a token to protect and nowhere it
