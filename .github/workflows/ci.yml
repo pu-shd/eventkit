@@ -89,9 +89,14 @@ jobs:
 
       - name: No WAF bypass header
         run: |
-          if grep -rIn 'wdsoit-bot-bypass' \
-               --exclude-dir=.git --exclude-dir=.venv --exclude=ci.yml . ; then
-            echo "::error::WAF bypass header name is committed."
+          # The pattern is split across two adjacent quoted strings so that this
+          # file does not itself contain the header name. The shell concatenates
+          # them, so the check still matches; but the check no longer publishes
+          # the string it exists to keep out of a public repository. It did,
+          # until now — and --exclude=ci.yml meant it could never notice.
+          pattern='wdsoit''-bot-bypass'
+          if grep -rIn "$pattern" --exclude-dir=.git --exclude-dir=.venv . ; then
+            echo "::error::WAF bypass header name is committed. Its only secret is its name."
             exit 1
           fi
           echo "OK: no bypass header."
