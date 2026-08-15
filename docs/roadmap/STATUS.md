@@ -64,13 +64,20 @@ neither reopened nor retargeted. Nothing was lost; the lesson for the next stack
 to retarget every PR to `main` *before* merging any of them, and to delete branches
 only at the end.
 
-## Not built
+## Phase 1 is complete
 
-`auth`, `db`, `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
-`eventbrite.client`, `eventbrite.sync`, `ui`, and the `azure` zsh toolkit. None
-are stubbed — they are absent, and the README says so.
+Every library module is built and tested: `identity`, `drupal`, `eventprofile`,
+`webhook`, `logging`, `eventbrite` (models, aggregate, client, sync), `db`, `auth`,
+`backup`, `realtime`, `notify`, `importer`, `admin`, `ui`, `mirror`, `testing`, `cli`.
 
-Phase 2 of the stack specifies them.
+**833 tests, released as v0.2.0.** Applications pin it as:
+
+```
+eventkit-core[app] @ https://github.com/pu-shd/eventkit/archive/refs/tags/v0.2.0.tar.gz
+```
+
+What remains outside this repository: the `azure` zsh toolkit (phase 2) and the five
+applications (phases 3–7).
 
 ## Defects found by actually running things
 

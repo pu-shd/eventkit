@@ -23,7 +23,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "eventkit-core"
-version = "0.1.0"
+version = "0.2.0"
 description = "Reusable core for the Sherrerd event-management stack: Drupal Webform ingest, identity, event profiles, ticket-vendor reconciliation primitives."
 readme = "README.md"
 requires-python = ">=3.11"
