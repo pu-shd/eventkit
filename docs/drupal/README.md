@@ -1,81 +1,90 @@
-# Drupal forms → eventkit apps
+# Drupal → eventkit
 
-How to design the registration webform for your next event, generate it from the
-YAML templates here, and wire it to a deployed set of eventkit applications.
+How submissions get from a Drupal webform into an application.
 
-Written from the CAARMS 2026 build. Everything here has been checked against the
-real Drupal export and against eventkit's own parser; where the two disagreed,
-the disagreement is documented rather than smoothed over.
+Form design, importing, conditional ticketing and the sanitized exports live in
+**[drupal-event-forms](https://github.com/pu-shd/drupal-event-forms)**. This page
+covers only eventkit's side: how a payload is parsed and how fields are mapped.
 
-## Read in this order
-
-| | Document | Read it when |
-|---|---|---|
-| 01 | [Designing the form](01-design.md) | Before you create anything. The element vocabulary, composites, `#states`, and the six decisions that are expensive to change later. |
-| 02 | [Templates and importing](02-templates.md) | You are ready to build the form. Includes the two real import paths — one of which is not the one you will find by searching. |
-| 03 | [Wiring to deployed apps](03-integration.md) | The form exists and you need submissions to reach the apps. Remote Post handlers, tokens, and the header gotcha that costs everyone an afternoon. |
-| 04 | [The field-map contract](04-field-map-contract.md) | Your element keys differ from the defaults, or someone renamed a field and data stopped arriving. |
-| 05 | [Conditional ticketing](05-conditional-ticketing.md) | Different people pay different amounts, or some pay nothing. |
-| 06 | [New-event runbook](06-runbook.md) | Doing it for real. An ordered checklist from empty Drupal to first live registration. |
-| 07 | [Troubleshooting](07-troubleshooting.md) | Something is not arriving, or arriving wrong. |
-
-Templates live in [`templates/`](templates/).
-
-## The mental model
-
-One Drupal webform is the **only** place a registrant types anything. Each
-eventkit application subscribes to that form independently:
+## The flow
 
 ```
-        Drupal registration webform
-                    │
-    ┌───────┬───────┼───────┬────────┐
-    │       │       │       │        │   one Remote Post handler each,
-    ▼       ▼       ▼       ▼        ▼   one token each, own database each
- ticket-  lodging- nametag- poster-  link-
- recon…   planner  press    gallery  forge
+Drupal webform ──Remote Post──> POST /api/drupal-webhook
+                                  │
+                                  ├─ verify token   (compare_digest)
+                                  ├─ parse_submission(payload, field_map)
+                                  ├─ person_key(uuid, email)
+                                  └─ upsert, return 200 in ~200ms
 ```
 
-Three consequences worth internalising before you design anything:
+Every application does exactly this. They share one parser, so a submission
+means the same thing everywhere.
 
-**Apps do not talk to each other.** Each keeps its own copy of the registrant.
-That is deliberate — one app going down cannot take registration with it, and an
-adopter can run only the tools they need. The cost is that the same person is a
-row in several databases, which is why the join key matters (see
-[01](01-design.md#the-join-key-is-the-one-thing-you-cannot-retrofit)).
+## Field maps
 
-**The form is the schema.** There is no admin UI for adding a field to an app.
-You add an element to the webform, name it in the event profile's field map, and
-the app picks it up. An element eventkit does not know about is ignored, not an
-error — which is convenient and is also how fields silently go missing.
+A field map ties webform element keys to the logical names an application uses.
+Declare it in the event profile:
 
-**Nothing event-specific belongs in application code.** Dates, ticket tiers,
-t-shirt sizes, role labels, lodging vocabularies and branding all live in one
-`event-profile.yaml`. For a new event you write a new profile and a new webform;
-you do not fork an app.
+```yaml
+drupal:
+  join_key: uuid
+  field_map:
+    fields:
+      email:         { key: [email, confirm_email_address], kind: email, required: true }
+      name:          { key: registrant_name, kind: name, required: true }
+      student:       { key: student, kind: bool }
+      lodging:       { key: lodging, kind: bool }
+      gender_identity: { key: gender_identity, kind: select_other }
+```
 
-## Two things to get right on day one
+Resolution order, logged once at startup:
 
-**Set up Easy Auth before you announce anything.** Every admin surface in the
-stack is gated on the `X-MS-CLIENT-PRINCIPAL-NAME` header that Azure Easy Auth
-injects. The provisioning scripts do not configure the identity provider — it is
-a manual portal step. Verify it:
+1. `profile.drupal.field_map`
+2. `profile.drupal.webform_schema` — a path to a Drupal export, inferred from
+3. neither → **the application refuses to start**, naming the missing fields
+
+There is no built-in default. A wrong field map silently drops registrations,
+which is worse than not booting.
+
+Check one without deploying:
 
 ```sh
-az webapp auth show -g <rg> -n <app> \
-  --query "identityProviders.azureActiveDirectory.registration.clientId" -o tsv
+eventkit fieldmap check event-profile.yaml
 ```
 
-An empty result means your admin routes are trusting a header that nothing is
-setting.
+## Kinds
 
-**Generate real webhook tokens.** `openssl rand -hex 32`, one per app, none
-reused. The apps refuse to start on a known placeholder value, and refuse to
-start with no value at all.
+| `kind` | Accepts | Produces |
+|---|---|---|
+| `email` | string, `{mail_1, mail_2}`, list | lowercased string |
+| `name` | `{first, last}`, `"Ada Lovelace"` | first + last |
+| `bool` | `1 true yes on checked y t` | bool |
+| `int` | `"12"`, `""` | int or None |
+| `select` | string | string |
+| `select_other` | `{select, other}` | the other value when select is `_other_` |
+| `multiselect` | dict, list, string | list |
+| `url`, `text` | string | string |
 
-## Conventions
+All coercions are total — junk yields `None`, never an exception.
 
-- `{{PLACEHOLDER}}` in a template is yours to replace.
-- Element **keys** are contracts; element **titles** are copy. Change titles
-  freely, change keys deliberately.
-- Option **keys** must match the event profile; option **labels** are copy.
+## Identity
+
+`person_key` prefers the Drupal submission `uuid` over a hash of the email, so
+a corrected address does not orphan someone's rows.
+
+**Verify `uuid` arrives on your first test submission.** It is a submission
+property, not an element, and it is absent from some exports. Check
+`GET /api/webhook/status`, which reports counters and `unmapped_keys` and no
+attendee data.
+
+## Templates
+
+[`templates/`](templates/) holds a core registration form plus optional
+fragments (poster, lodging, swag, ticketing). Concatenate what you need:
+
+```sh
+cat templates/registration.core.yaml templates/fragment.*.yaml > registration.yaml
+```
+
+They are verified against eventkit's own parser in CI, so they cannot drift from
+the code that reads them.

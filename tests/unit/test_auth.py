@@ -1,5 +1,5 @@
 """Tests for eventkit.auth: the header matrix, dev-bypass hardening, redirect
-vs 401 by path, and WS ticket expiry/tampering — the priorities PLAN.md's
+vs 401 by path, and WS ticket expiry/tampering — the priorities the
 testing appendix (E.1) calls out by name for this module."""
 
 from __future__ import annotations

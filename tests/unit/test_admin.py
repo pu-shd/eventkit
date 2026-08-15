@@ -1,6 +1,6 @@
 """Tests for eventkit.admin: HMAC task-token signing/verification, single-use
 nonce enforcement, audit logging for every outcome (allow and deny alike),
-and the router that wires all three together, per docs/roadmap/PLAN.md
+and the router that wires all three together
 F.9's ``admin-task.yml`` fallback spec (path|sha256(body)|ts, +-300s,
 single-use nonce table, audit row)."""
 

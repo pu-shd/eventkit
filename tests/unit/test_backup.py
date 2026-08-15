@@ -1,4 +1,4 @@
-"""Tests for eventkit.backup: the priorities PLAN.md's testing appendix (E.1)
+"""Tests for eventkit.backup: the priorities the testing plan
 calls out by name — round trip through TestClient, restore rejecting a
 foreign manifest.app_name, and the whole payload being validated before the
 first DELETE — plus the router hardening this module adds on top
