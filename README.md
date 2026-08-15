@@ -27,6 +27,15 @@ absent module is better than one that imports and misbehaves.
 | `eventkit.logging` | leaky debug lines | `RedactFilter` installed as a **log record factory**, so it protects handlers eventkit does not own |
 | `eventkit.eventbrite` | an 80-line untestable loop | Pure `aggregate_by_email()`, table-tested |
 | `eventkit.testing` | 2 hand-rolled conftests | pytest plugin + golden Drupal fixtures, shipped in the wheel |
+| `eventkit.db` | 341 lines of hand-rolled `ALTER TABLE` | `Database`, Alembic wiring, Azure Files pragmas (`TRUNCATE`, not WAL) |
+| `eventkit.auth` | 18 imperative guards + 90 lines of inline HTML | Easy Auth `Depends`, allow-list that denies when empty, themed denial page, HMAC WS tickets |
+| `eventkit.backup` | 2 hand-written dump/restore pairs | Mountable router; columns from `inspect()`, not hand-maintained lists |
+| `eventkit.realtime` | a module-global socket list | Polling change feed, correct on N instances; WS opt-in |
+| `eventkit.notify` | Resend welded to 4 templates | Pluggable transports, log-only default, nothing blocking the event loop |
+| `eventkit.importer` | `import_existing.py` | Any model, any source, with `--dry-run` |
+| `eventkit.admin` | an unauthenticated wipe endpoint | HMAC destructive-op task tokens |
+| `eventkit.ui` | 5 drifting copies of the same chrome | Paper Tiger tokens + ES modules, no bundler, SheetJS/MathJax vendored |
+| `eventkit.mirror` | a startup-time site scraper | Build-time CLI, content-validated, opt-in |
 | `eventkit.db` | a 341-line try/except migrator | `Database`, `declarative_base()`, Alembic wiring (`init_migrations`/`upgrade_to_head`/`stamp`/`assert_at_head`/`lifespan_migrations`), `AZURE_FILES_PRAGMAS` for SQLite on an SMB mount |
 | `eventkit.auth` | 18 imperative `is_admin_authorized()` call sites | `EasyAuth` as a `Depends`, not a function call — allow-list, dev bypass refused on Azure, themed access-denied page, HMAC WebSocket tickets |
 | `eventkit.backup` | 2 hand-written 55-line field lists | `dump()`/`restore()` driven by `sqlalchemy.inspect(model).columns`, `make_backup_router()` (`GET db-backup`, `POST db-restore(/validate)`), whole-payload validation before the first `DELETE`, restore disabled by default |
@@ -147,27 +156,25 @@ The templates in [`docs/drupal/templates/`](docs/drupal/templates/) are verified
 against this library's own parser by `tests/unit/drupal/test_doc_templates.py`,
 so they cannot drift from the code that reads them.
 
-## Not yet built
+## What is not built
 
-Listed so nobody looks for it: the `azure` zsh toolkit.
+The library is complete for v0.2. What remains is **outside** this repository:
 
-The CLI **is** built, for the parts that exist:
+| Not here | Where it goes |
+|---|---|
+| The `azure` zsh bootstrap toolkit | `eventkit azure` reports that it is not built in v0.2. Specified in [`docs/roadmap/phase-02-azure-toolkit.md`](docs/roadmap/phase-02-azure-toolkit.md). |
+| The five applications | Their own repositories, listed above. |
+
+The CLI covers the parts that exist:
 
 ```sh
 eventkit profile validate event-profile.yaml   # OK  CAARMS 2026  slug=caarms-2026  …
 eventkit profile public event-profile.yaml     # the browser-safe JSON projection
 eventkit profile checkin-keys event-profile.yaml
 eventkit fieldmap check event-profile.yaml     # resolve and print the field map
-eventkit db init --package myapp               # scaffold migrations/ + alembic.ini
-eventkit db upgrade --url sqlite:///./app.db --migrations-dir migrations
-eventkit db current --url sqlite:///./app.db
+eventkit ui vendor --dest ./vendor --theme neutral
+eventkit mirror --spec mirror.yaml --dest ./vendor/site
 ```
-
-`eventkit azure` is declared but reports that it is not built in v0.1. There
-is no `eventkit import` verb, built or otherwise: importing needs a `Session`
-and an app-specific `parse`/`upsert`, so it can never be a generic top-level
-command — see `eventkit.importer`'s `add_import_arguments()` for the per-app
-equivalent.
 
 ## Licence
 
