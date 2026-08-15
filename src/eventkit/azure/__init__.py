@@ -58,7 +58,11 @@ def exec_toolkit(argv: list[str]) -> int:
     env["EVENTKIT_AZURE_LIB"] = str(lib_path())
     env.setdefault("EK_VERSION", _version())
 
-    os.execve(zsh, [zsh, str(script), *argv], env)
+    # S606 (no shell) is the point, not an oversight: handing the toolkit a
+    # shell would reintroduce quoting bugs in an argv we already control, and
+    # execve rather than subprocess is what gives the interactive gate the
+    # terminal and the signals.
+    os.execve(zsh, [zsh, str(script), *argv], env)  # noqa: S606
     return 0  # pragma: no cover - execve does not return
 
 

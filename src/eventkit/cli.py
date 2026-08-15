@@ -24,6 +24,7 @@ from collections.abc import Sequence
 
 from . import __version__
 
+
 def _load(path: str | None):
     from .eventprofile.load import load_profile
 
