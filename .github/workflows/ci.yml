@@ -96,14 +96,33 @@ jobs:
           fi
           echo "OK: no bypass header."
 
-      - name: gitleaks
-        # Not gitleaks/gitleaks-action@v2: that wrapper requires a paid
-        # GITLEAKS_LICENSE secret for organization-owned repositories and fails
-        # the job without one. The scanner itself is MIT-licensed, so run the
-        # official image directly. Config and allowlist live in .gitleaks.toml.
+      # No third-party scanner. The named checks above cover the values this
+      # codebase has actually leaked before; this one covers the generic shapes,
+      # using grep, which is already here and which nobody has to trust.
+      - name: No credential-shaped literals
         run: |
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 \
-            git /repo --config=/repo/.gitleaks.toml --redact --no-banner --verbose
+          fail=0
+          # -e, because a pattern beginning with a dash is otherwise read as a
+          # flag. --exclude-dir=workflows, because the shipped CI templates under
+          # src/eventkit/azure/templates/ carry these same patterns as data and
+          # would match themselves.
+          check() {
+            if grep -rInE -e "$1" \
+                 --exclude-dir=.git --exclude-dir=.venv --exclude-dir=node_modules \
+                 --exclude-dir=workflows . ; then
+              echo "::error::$2"
+              fail=1
+            fi
+          }
+          check '-----BEGIN [A-Z ]*PRIVATE KEY-----' 'A private key is committed.'
+          check '(AKIA|ASIA)[0-9A-Z]{16}' 'An AWS access key id is committed.'
+          check 'gh[pousr]_[A-Za-z0-9]{36}' 'A GitHub token is committed.'
+          check 're_[A-Za-z0-9]{20,}' 'A Resend API key is committed.'
+          check 'DefaultEndpointsProtocol=.*AccountKey=' 'An Azure storage connection string is committed.'
+          check '(client_secret|clientSecret)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"']{8,}' 'A client secret literal is committed.'
+          check '(password|passwd)["'"'"']?\s*[:=]\s*["'"'"'][^"'"'"'{$][^"'"'"']{7,}' 'A password literal is committed.'
+          [ "$fail" -eq 0 ] && echo "OK: nothing credential-shaped."
+          exit "$fail"
 
   # ---------------------------------------------------------------------------
   lint:

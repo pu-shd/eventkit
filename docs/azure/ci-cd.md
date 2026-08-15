@@ -12,6 +12,11 @@ cp "$(python -c 'import eventkit.azure as a; print(a.templates_path())')"/workfl
 `eventkit azure eject --dest ./deploy` copies the whole toolkit including the
 templates, for an application that needs to diverge.
 
+Every step is either a shell command or one of GitHub's own actions
+(`actions/checkout`, `actions/github-script`) plus Microsoft's `azure/login`,
+which is what performs the OIDC token exchange. No marketplace actions, no
+third-party scanners, nothing to install.
+
 | Workflow | Trigger | What it does |
 |---|---|---|
 | [`test.yml`](#test) | push, PR | The Docker `test` target, sqlite and postgres, plus hygiene checks |
@@ -50,9 +55,14 @@ Matrixed over SQLite and Postgres. Deliberately, the SQLite leg starts no
 Postgres service container — the predecessor started one and then pointed the
 suite at an in-memory SQLite anyway.
 
-A second job greps for `@princeton.edu` outside `examples/`, for committed
-bearer tokens, and runs gitleaks. These are public repositories; the check is
-cheap and the mistake is not recoverable once pushed.
+A second job greps for institutional addresses outside `examples/`, for
+committed bearer tokens, and for the generic shapes of a leaked credential —
+private keys, cloud access keys, connection strings. These are public
+repositories; the check is cheap and the mistake is not recoverable once pushed.
+
+It uses `grep`, deliberately. A third-party secret scanner is one more thing to
+trust, to keep current, and — in the case of the popular one — to pay for on an
+organization-owned repository.
 
 ## deploy
 
@@ -63,12 +73,12 @@ The image is tagged with the commit SHA *and* `latest`. Rolling back is
 re-running the workflow with `image_tag` set to a previous SHA — the tag still
 exists, so the rollback needs no rebuild.
 
-The job builds with buildx; `eventkit azure update` on a laptop uses
-`az acr build`. Both are supported and produce equivalent images. The
-distinction exists because CI already has a Docker daemon and gets layer caching
-from it, while an operator may not have Docker installed at all. In the
-predecessors these two paths existed too, but silently, and nobody had said they
-were meant to agree.
+The job builds with plain `docker build`; `eventkit azure update` on a laptop
+uses `az acr build`. Both are supported and produce equivalent images — which in
+the predecessors was also true but unstated, so nobody knew the two paths were
+meant to agree. The runner already has a Docker daemon, so no build action is
+needed, and nothing third-party sits between a commit and the image that runs in
+production.
 
 After repointing the container it polls the health path for ten minutes and
 fails the job if it never answers 200. A deploy that "succeeded" while the

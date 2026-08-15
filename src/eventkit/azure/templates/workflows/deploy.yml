@@ -93,24 +93,21 @@ jobs:
       - name: Sign in to the registry
         run: az acr login --name "${{ vars.ACR_NAME }}"
 
-      - uses: docker/setup-buildx-action@v3
+      # Plain docker, not a marketplace build action. The runner already has a
+      # daemon, and the fewer third-party dependencies stand between a commit
+      # and the image you run in production, the better. `eventkit azure update`
+      # uses `az acr build` locally; both produce equivalent images, and that
+      # they are meant to agree is now stated rather than assumed.
+      - name: Build and push
         if: steps.tag.outputs.build == 'true'
-
-      # buildx here, `az acr build` in the local `eventkit azure update`. Both
-      # are supported and produce equivalent images; CI uses buildx because it
-      # already has a daemon and gets layer caching from it.
-      - uses: docker/build-push-action@v6
-        if: steps.tag.outputs.build == 'true'
-        with:
-          context: .
-          target: runtime
-          push: true
-          provenance: false
-          tags: |
-            ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}:${{ steps.tag.outputs.tag }}
-            ${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          set -euo pipefail
+          repo="${{ vars.ACR_NAME }}.azurecr.io/${{ vars.IMAGE_NAME || github.event.repository.name }}"
+          docker build --target runtime \
+            -t "${repo}:${{ steps.tag.outputs.tag }}" \
+            -t "${repo}:latest" .
+          docker push "${repo}:${{ steps.tag.outputs.tag }}"
+          docker push "${repo}:latest"
 
       - name: Verify the tag exists before pointing the app at it
         run: |

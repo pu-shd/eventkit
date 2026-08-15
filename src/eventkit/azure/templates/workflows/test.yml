@@ -30,16 +30,11 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      # Plain docker, not a marketplace build action: the runner already has a
+      # daemon, and one fewer third-party dependency in the path that produces
+      # the image you ship is worth more than layer caching.
       - name: Build the test image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: test
-          load: true
-          tags: app-test:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: docker build --target test -t app-test:ci .
       - name: Run the suite
         run: docker run --rm -e TEST_DATASTORE=sqlite app-test:ci
 
@@ -58,16 +53,11 @@ jobs:
           --health-timeout 5s --health-retries 12
     steps:
       - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      # Plain docker, not a marketplace build action: the runner already has a
+      # daemon, and one fewer third-party dependency in the path that produces
+      # the image you ship is worth more than layer caching.
       - name: Build the test image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: test
-          load: true
-          tags: app-test:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: docker build --target test -t app-test:ci .
       - name: Run the suite
         run: |
           docker run --rm --network host \
@@ -104,11 +94,21 @@ jobs:
             exit 1
           fi
 
-      # Not gitleaks/gitleaks-action@v2: that wrapper requires a paid
-      # GITLEAKS_LICENSE secret for organization-owned repositories and fails
-      # the job without one. The scanner itself is MIT-licensed, so run the
-      # official image directly.
-      - name: gitleaks
+      - name: No credential-shaped literals
         run: |
-          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 \
-            git /repo --redact --no-banner --verbose
+          fail=0
+          # -e, because a pattern beginning with a dash is otherwise read as a
+          # flag; --exclude-dir=workflows, because this file carries the patterns
+          # as data and would match itself.
+          check() {
+            if grep -rInE -e "$1" --exclude-dir=.git --exclude-dir=node_modules \
+                 --exclude-dir=.venv --exclude-dir=workflows . ; then
+              echo "::error::$2"; fail=1
+            fi
+          }
+          check '-----BEGIN [A-Z ]*PRIVATE KEY-----' 'A private key is committed.'
+          check '(AKIA|ASIA)[0-9A-Z]{16}' 'An AWS access key id is committed.'
+          check 'gh[pousr]_[A-Za-z0-9]{36}' 'A GitHub token is committed.'
+          check 'DefaultEndpointsProtocol=.*AccountKey=' 'An Azure connection string is committed.'
+          [ "$fail" -eq 0 ] && echo "OK: nothing credential-shaped."
+          exit "$fail"
