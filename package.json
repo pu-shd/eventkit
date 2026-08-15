@@ -1,0 +1,13 @@
+{
+  "name": "eventkit-ui-tests",
+  "private": true,
+  "type": "module",
+  "description": "vitest/jsdom for src/eventkit/ui/static/js/**. No bundler and no build step for the shipped kit itself — Node exists only as a test dependency, confined to the Docker `test` stage (see Dockerfile, run_tests.sh).",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.1",
+    "vitest": "^2.1.9"
+  }
+}

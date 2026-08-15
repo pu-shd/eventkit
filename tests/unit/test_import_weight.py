@@ -37,6 +37,7 @@ LIGHT_MODULES = [
     "eventkit.eventbrite.aggregate",
     "eventkit.eventbrite",
     "eventkit.webhook",
+    "eventkit.ui",
 ]
 
 HEAVY_PACKAGES = ["fastapi", "sqlalchemy", "httpx", "starlette", "resend", "alembic"]
@@ -150,6 +151,36 @@ def test_a_realistic_nametag_workload_needs_no_http_client():
         )
         assert submission.full_name == "Ada Lovelace"
         assert submission.get("attendee_status") == "Speaker"
+        """
+    )
+    result = run_without_heavy_packages(body)
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_realistic_static_file_server_needs_no_web_framework():
+    """Any app can serve the shipped UI kit as plain files without pulling in
+    a web framework merely to locate/validate/theme them."""
+    body = textwrap.dedent(
+        """
+        from eventkit.eventprofile.models import EventProfile
+        from eventkit.ui import assert_assets_present, render_theme_vars, static_path, theme_ids
+
+        assert theme_ids() == ["neutral", "princeton-orfe"]
+        assert_assets_present(static_path())
+
+        profile = EventProfile.model_validate({
+            "event": {
+                "name": "Example Conference", "short_name": "EX", "year": 2030,
+                "slug": "ex-2030", "site_url": "https://example.edu",
+                "registration_form_url": "https://example.edu/form",
+            },
+            "schedule": {"start_date": "2030-06-01", "end_date": "2030-06-02"},
+            "branding": {"site_name": "EX 2030"},
+            "drupal": {"field_map": {"fields": {
+                "email": {"key": "email", "kind": "email"}}}},
+        })
+        css = render_theme_vars(profile)
+        assert "--color-brand-70:" in css
         """
     )
     result = run_without_heavy_packages(body)

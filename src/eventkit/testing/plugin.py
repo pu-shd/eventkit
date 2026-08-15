@@ -350,9 +350,137 @@ def sqlite_engine(tmp_path: Path):
 #: ``examples/`` and ``themes/princeton-orfe/`` to keep that from recurring.
 ADMIN_EMAIL = "admin@example.edu"
 
-# NOTE: the `principal`, `make_client`, `as_anonymous`, `make_database`,
-# `db_session`, `mail_outbox` and `eventbrite_mock` fixtures land with the
-# `auth`, `db`, `notify` and `eventbrite.client` modules respectively. They are
-# deliberately absent rather than stubbed: a fixture that exists but does not
-# work is worse than one that is missing, because the failure surfaces inside a
-# test rather than at collection.
+# --------------------------------------------------------------------------
+# Auth
+# --------------------------------------------------------------------------
+@pytest.fixture
+def principal():
+    """A ``Principal`` for :data:`ADMIN_EMAIL`, allow-listed by default."""
+    from ..auth import Principal
+
+    return Principal(email=ADMIN_EMAIL, display_name="Admin Example", provider="aad", id="p-1")
+
+
+@pytest.fixture
+def make_client() -> Callable[..., Any]:
+    """``make_client(app, db=session, principal="admin@example.edu")`` -> ``TestClient``.
+
+    Wires ``app.dependency_overrides`` for the database and auth dependencies so
+    a test can drive a real FastAPI app without a live SQLite file or a real
+    Easy Auth proxy in front of it. Follows the convention every app's
+    ``create_app()`` factory is expected to establish: the constructed
+    ``Database`` lives at ``app.state.database`` and the constructed
+    ``EasyAuth`` at ``app.state.auth``. Either or both may be absent — a caller
+    testing a module that needs only one of them still gets a working client.
+
+    ``principal=None`` behaves like :func:`as_anonymous`: the *required* auth
+    dependency is left wired to Easy Auth's real header check (so a request
+    with no Easy Auth headers exercises the genuine redirect/401 path), while
+    the *optional* dependency is overridden to ``None`` for convenience.
+    """
+
+    def _make(
+        app: Any,
+        *,
+        db: Any = None,
+        principal: Any = "admin@example.edu",
+        follow_redirects: bool = True,
+    ) -> Any:
+        from starlette.testclient import TestClient
+
+        from ..auth import Principal
+
+        database = getattr(app.state, "database", None)
+        if database is not None and db is not None:
+            def _override_get_db() -> Iterator[Any]:
+                yield db
+
+            app.dependency_overrides[database.get_db] = _override_get_db
+
+        auth = getattr(app.state, "auth", None)
+        if auth is not None:
+            if principal is None:
+                app.dependency_overrides.pop(auth.dependency(), None)
+                app.dependency_overrides[auth.optional()] = lambda: None
+            else:
+                is_principal = isinstance(principal, Principal)
+                resolved = principal if is_principal else Principal(email=principal)
+                app.dependency_overrides[auth.dependency()] = lambda: resolved
+                app.dependency_overrides[auth.optional()] = lambda: resolved
+
+        return TestClient(app, follow_redirects=follow_redirects)
+
+    return _make
+
+
+@pytest.fixture
+def as_anonymous(make_client: Callable[..., Any]) -> Callable[..., Any]:
+    """``as_anonymous(app)`` -> a ``TestClient`` with no principal overridden.
+
+    Requests carry no Easy Auth headers, so a protected route exercises the
+    real "no principal" path: redirect on a page path, 401 elsewhere. Redirects
+    are not followed, so a caller can assert on the 302 and its ``Location``
+    directly. For asserting the allow-list itself (an authenticated-but-rejected
+    principal), use ``make_client(app, principal="nobody@example.edu")`` instead
+    — that *is* a real principal, just not an authorized one.
+    """
+
+    def _make(app: Any, *, db: Any = None) -> Any:
+        return make_client(app, db=db, principal=None, follow_redirects=False)
+
+    return _make
+
+
+# NOTE: `make_database`/`db_session` are still absent even though `eventkit.db`
+# landed in a prior iteration — PLAN.md SS E.1's sketch (`db_session(make_database)`,
+# no `Base` argument) does not by itself say which app's tables `db_session`
+# should create, and guessing produces a fixture that is either schema-less
+# (breaks on first real query) or silently coupled to one app's `Base`. Neither
+# `eventkit.backup`'s tests nor any other module built so far needed them: each
+# builds its own throwaway `Base`/`Database` inline instead. Add them for real
+# once an app's `create_app()` factory exists to observe the convention against
+# — `phase1:reference-app` is that first app, per DEC-002.
+
+
+# --------------------------------------------------------------------------
+# Notify
+# --------------------------------------------------------------------------
+@pytest.fixture
+def mail_outbox():
+    """A :class:`~eventkit.notify.MemoryTransport` — its ``.outbox`` list is
+    every :class:`~eventkit.notify.Message` sent through it during the test.
+
+    Construct a :class:`~eventkit.notify.Notifier` with this as its transport
+    to assert on outbound notifications without touching SMTP, Resend or ACS::
+
+        notifier = Notifier(mail_outbox, renderer, policy, from_email="a@example.edu")
+        await notifier.notify("completed_payment", {"email": "ada@example.edu"})
+        assert mail_outbox.outbox[0].to == ["events@example.edu"]
+    """
+    from ..notify import MemoryTransport
+
+    return MemoryTransport()
+
+
+# --------------------------------------------------------------------------
+# Eventbrite
+# --------------------------------------------------------------------------
+@pytest.fixture
+def eventbrite_mock(respx_mock: Any) -> Any:
+    """A :class:`~eventkit.eventbrite.client.EventbriteMock` wired to ``respx_mock``.
+
+    ``respx_mock`` comes from ``respx``'s own pytest plugin (installed
+    automatically with ``eventkit-core[test]``, which depends on ``respx``);
+    entering it as a context manager is what makes an unmatched request raise
+    instead of reaching the network — the ``_no_network`` fixture above blocks
+    the socket layer too, so a real Eventbrite call is doubly impossible here::
+
+        eventbrite_mock.add_attendees(
+            [{"profile": {"email": "a@example.edu"}, "status": "Attending"}]
+        )
+        client = EventbriteClient("t", "12345")
+        attendees = await client.fetch_attendees()
+    """
+    from ..eventbrite.client import EventbriteMock
+
+    return EventbriteMock(respx_mock)

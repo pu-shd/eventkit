@@ -1,0 +1,12 @@
+/* eventkit UI kit — type families.
+ *
+ * No @font-face rules and no shipped font binaries: the brand-neutral kit uses
+ * system font stacks so it renders correctly with zero network requests and
+ * zero licensing concerns. A theme (themes/<id>/theme.css) may redefine these
+ * two custom properties to point at a webfont it does ship.
+ */
+
+:root {
+  --font-display: "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --font-label: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}

@@ -25,10 +25,15 @@ RUN pip install --no-cache-dir -e ".[test]"
 
 # ---------------------------------------------------------------------------
 FROM deps AS test
+# nodejs/npm are confined to this stage (never the runtime stage below) —
+# vitest+jsdom is the eventkit.ui JS test suite's only reason to need Node.
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
 COPY . .
 # `-e` above already installed the package; reinstall so entry points pick up
 # any change to pyproject.toml made after the deps layer was cached.
 RUN pip install --no-cache-dir -e ".[test]"
+RUN npm ci
 # COPY lands as root, but the suite runs as `app` and coverage writes its data
 # file into the working directory. Without this the run dies in pytest-cov's
 # teardown with "Couldn't use data file '/app/.coverage...': unable to open

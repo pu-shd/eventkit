@@ -1,0 +1,17 @@
+/* eventkit UI kit — "neutral" theme.
+ *
+ * Layer 2 of the cascade (see tokens/tokens.css). The neutral theme adds no
+ * brand color of its own — it inherits tokens.css's grayscale --color-brand-*
+ * ramp as-is, so the actual color always comes from the per-event
+ * render_theme_vars() layer (eventkit.ui.render_theme_vars(profile), derived
+ * from EventProfile.branding.brand_color). A third-party adopter who sets
+ * `branding.theme: neutral` plus a brand_color gets a coherent look with zero
+ * CSS of their own.
+ *
+ * The neutral theme's chrome has one site-logo slot (see chrome.js /
+ * partials), unlike princeton-orfe's fixed Princeton + SEAS lockup.
+ */
+
+:root {
+  /* No overrides: tokens.css's brand-neutral ramp is this theme's default. */
+}

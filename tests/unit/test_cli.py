@@ -133,6 +133,126 @@ class TestFieldmapCheck:
         assert "no_such_field" in capsys.readouterr().err
 
 
+class TestDbCommands:
+    """CLI wiring only — `eventkit.db.migrate` has its own exhaustive tests."""
+
+    @pytest.fixture
+    def app_package(self, tmp_path, monkeypatch):
+        package_dir = tmp_path / "cliapp"
+        package_dir.mkdir()
+        (package_dir / "__init__.py").write_text("target_metadata = None\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        return "cliapp"
+
+    def _write_revision(self, migrations_dir, *, broken=False):
+        versions = migrations_dir / "versions"
+        if broken:
+            versions.joinpath("rev1_broken.py").write_text(
+                "revision = 'rev1'\n"
+                "down_revision = None\n"
+                "branch_labels = None\n"
+                "depends_on = None\n\n"
+                "def upgrade() -> None:\n"
+                "    raise RuntimeError('boom')\n\n"
+                "def downgrade() -> None:\n"
+                "    pass\n"
+            )
+        else:
+            versions.joinpath("rev1_create_widgets.py").write_text(
+                "revision = 'rev1'\n"
+                "down_revision = None\n"
+                "branch_labels = None\n"
+                "depends_on = None\n"
+                "from alembic import op\n"
+                "import sqlalchemy as sa\n\n"
+                "def upgrade() -> None:\n"
+                "    op.create_table('widgets', sa.Column('id', sa.Integer, primary_key=True))\n\n"
+                "def downgrade() -> None:\n"
+                "    op.drop_table('widgets')\n"
+            )
+
+    def test_init_scaffolds_migrations(self, tmp_path, app_package, capsys):
+        assert main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package]) == 0
+        assert (tmp_path / "migrations" / "env.py").exists()
+        assert "OK" in capsys.readouterr().out
+
+    def test_init_twice_fails_without_overwriting(self, tmp_path, app_package, capsys):
+        main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package])
+        assert main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package]) == 1
+        assert "already exists" in capsys.readouterr().err
+
+    def test_current_on_a_fresh_database_prints_base(self, tmp_path, capsys):
+        assert main(["db", "current", "--url", f"sqlite:///{tmp_path / 'cli.db'}"]) == 0
+        assert capsys.readouterr().out.strip() == "(base)"
+
+    def test_upgrade_then_current_round_trip(self, tmp_path, app_package, capsys):
+        main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package])
+        migrations_dir = tmp_path / "migrations"
+        self._write_revision(migrations_dir)
+        db_url = f"sqlite:///{tmp_path / 'cli.db'}"
+        upgrade_args = ["db", "upgrade", "--url", db_url, "--migrations-dir", str(migrations_dir)]
+
+        assert main(upgrade_args) == 0
+        assert "rev1" in capsys.readouterr().out
+        assert main(["db", "current", "--url", db_url]) == 0
+        assert capsys.readouterr().out.strip() == "rev1"
+
+    def test_upgrade_failure_exits_one_with_the_error(self, tmp_path, app_package, capsys):
+        main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package])
+        migrations_dir = tmp_path / "migrations"
+        self._write_revision(migrations_dir, broken=True)
+        db_url = f"sqlite:///{tmp_path / 'cli.db'}"
+        upgrade_args = ["db", "upgrade", "--url", db_url, "--migrations-dir", str(migrations_dir)]
+
+        assert main(upgrade_args) == 1
+        assert "must not start" in capsys.readouterr().err
+
+    def test_stamp_sets_current_without_running_migrations(self, tmp_path, app_package, capsys):
+        main(["db", "init", "--app-dir", str(tmp_path), "--package", app_package])
+        migrations_dir = tmp_path / "migrations"
+        self._write_revision(migrations_dir)
+        db_url = f"sqlite:///{tmp_path / 'cli.db'}"
+        stamp_args = [
+            "db", "stamp", "--url", db_url, "--migrations-dir", str(migrations_dir), "rev1"
+        ]
+
+        assert main(stamp_args) == 0
+        capsys.readouterr()
+        assert main(["db", "current", "--url", db_url]) == 0
+        assert capsys.readouterr().out.strip() == "rev1"
+
+
+class TestUiCommands:
+    """CLI wiring only — `eventkit.ui` has its own exhaustive tests."""
+
+    def test_vendor_copies_the_kit(self, tmp_path, capsys):
+        dest = tmp_path / "static"
+        assert main(["ui", "vendor", "--dest", str(dest), "--theme", "neutral"]) == 0
+        assert (dest / "tokens" / "tokens.css").is_file()
+        assert "OK" in capsys.readouterr().out
+
+    def test_vendor_unknown_theme_exits_one(self, tmp_path, capsys):
+        dest = tmp_path / "static"
+        assert main(["ui", "vendor", "--dest", str(dest), "--theme", "bogus"]) == 1
+        assert "unknown theme" in capsys.readouterr().err
+
+    def test_vendor_theme_prints_a_root_block(self, example_path, capsys):
+        assert main(["ui", "vendor-theme", example_path]) == 0
+        assert ":root {" in capsys.readouterr().out
+
+    def test_vendor_theme_writes_to_a_file(self, example_path, tmp_path, capsys):
+        out = tmp_path / "generated-theme.css"
+        assert main(["ui", "vendor-theme", example_path, "--out", str(out)]) == 0
+        assert "--color-brand-70:" in out.read_text()
+        assert "OK" in capsys.readouterr().out
+
+    def test_vendor_theme_invalid_profile_exits_one(self, tmp_path, capsys):
+        bad = tmp_path / "event-profile.yaml"
+        bad.write_text("event:\n  name: Incomplete\n", encoding="utf-8")
+        assert main(["ui", "vendor-theme", str(bad)]) == 1
+        assert "problem(s)" in capsys.readouterr().err
+
+
 class TestUnbuiltVerbs:
     @pytest.mark.parametrize("verb", sorted(NOT_YET_BUILT))
     def test_unbuilt_verb_is_honest_and_exits_two(self, verb, capsys):

@@ -1,0 +1,8 @@
+<h2>Exempt registration received</h2>
+<p>A new attendee has registered and indicated they do not require a ticket purchase.</p>
+<ul>
+  <li><strong>Email:</strong> {{ email }}</li>
+  {% if full_name %}<li><strong>Name:</strong> {{ full_name }}</li>{% endif %}
+  {% if serial %}<li><strong>Registration number:</strong> {{ serial }}</li>{% endif %}
+  {% if sid %}<li><strong>Submission ID:</strong> {{ sid }}</li>{% endif %}
+</ul>

@@ -1,0 +1,131 @@
+/* Paper Tiger — hero / slider. Requires tokens.css. */
+
+.pt-hero {
+  position: relative;
+  background: var(--color-neutral-100);
+  color: var(--color-white);
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+}
+.pt-hero__slides {
+  list-style: none;
+  margin: 0; padding: 0;
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+.pt-hero__slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: scale(1.05);
+}
+.pt-hero__slide.is-current { 
+  opacity: 1; 
+  transform: scale(1);
+}
+.pt-hero__media,
+.pt-hero__media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.pt-hero__media img { object-fit: cover; display: block; }
+.pt-hero__media::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(to top,
+              rgba(0,0,0,0.85) 0%,
+              rgba(0,0,0,0.40) 30%,
+              rgba(0,0,0,0)  60%);
+}
+
+.pt-hero__caption {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: var(--space-8) var(--container-gutter);
+  z-index: 1;
+}
+@media (min-width: 48rem) {
+  .pt-hero__caption {
+    max-width: 70rem;
+    padding: var(--space-12) var(--space-10);
+  }
+}
+.pt-hero__title {
+  margin: 0 0 var(--space-4);
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-bold);
+  font-size: clamp(1.75rem, 4vw + 1rem, 3.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+.pt-hero__title a {
+  color: var(--color-white);
+  text-decoration: none;
+  background: linear-gradient(to right, var(--color-brand-70), var(--color-brand-70)) no-repeat;
+  background-size: 0 4px;
+  background-position: 0 100%;
+  transition: background-size 0.4s ease;
+  padding-bottom: 4px;
+}
+.pt-hero__title a:hover, .pt-hero__title a:focus { 
+  background-size: 100% 4px;
+}
+
+.pt-hero__date {
+  margin: 0;
+  font-family: var(--font-label);
+  color: var(--color-brand-70);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.pt-hero__controls {
+  position: absolute;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  z-index: 2;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(10px);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.pt-hero__counter {
+  font-family: var(--font-label);
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-white);
+  font-variant-numeric: tabular-nums;
+}
+.pt-hero__buttons { display: flex; gap: var(--space-2); }
+.pt-hero__btn {
+  background: transparent;
+  color: var(--color-white);
+  border: 1px solid rgba(255,255,255,0.3);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.25rem;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+}
+.pt-hero__btn:hover, .pt-hero__btn:focus {
+  background: var(--color-brand-70);
+  border-color: var(--color-brand-70);
+  color: var(--color-neutral-100);
+  transform: translateY(-2px);
+}
+.pt-hero__btn--play {
+  font-size: 0.875rem;
+}

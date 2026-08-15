@@ -1,0 +1,9 @@
+<h2>Registration completed and paid</h2>
+<p>A registrant has successfully paid for their ticket and is now fully reconciled.</p>
+<ul>
+  <li><strong>Email:</strong> {{ email }}</li>
+  {% if full_name %}<li><strong>Name:</strong> {{ full_name }}</li>{% endif %}
+  {% if serial %}<li><strong>Registration number:</strong> {{ serial }}</li>{% endif %}
+  {% if sid %}<li><strong>Submission ID:</strong> {{ sid }}</li>{% endif %}
+  {% if order_id %}<li><strong>Order ID:</strong> {{ order_id }}</li>{% endif %}
+</ul>

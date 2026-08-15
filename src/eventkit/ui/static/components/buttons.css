@@ -1,0 +1,104 @@
+/* Paper Tiger — buttons.
+ *
+ * Tiger has three shape modifiers (square / round / pill) crossed with three
+ * intent variants (primary / secondary / outline). Match the live ORFE site
+ * by combining .pt-btn with one shape and one intent class.
+ *
+ * The primary intent uses the Princeton-orange brand-70 fill on a dark text
+ * label — that is the actual contract used by .btn-primary inside Tiger
+ * blocks (border-color and background both = var(--color-action-70), text
+ * stays neutral-100 for AA contrast).
+ */
+
+.pt-btn {
+  --btn-border-radius: var(--radius-none); /* btn-v1 default */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1.25rem;
+  font-family: var(--font-display);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  border-radius: var(--btn-border-radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.pt-btn:focus-visible { outline: 2px solid var(--color-focus-outline); outline-offset: 2px; }
+.pt-btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+/* Shape modifiers */
+.pt-btn--square        { --btn-border-radius: var(--radius-none); }
+.pt-btn--round-corners { --btn-border-radius: var(--radius-md);   }
+.pt-btn--pill          { --btn-border-radius: var(--radius-pill); }
+
+/* Intent: primary — Princeton orange */
+.pt-btn--primary {
+  background: var(--color-action-70);
+  border-color: var(--color-action-70);
+  color: var(--color-neutral-100);
+}
+.pt-btn--primary:hover,
+.pt-btn--primary:focus {
+  background: var(--color-action-80);
+  border-color: var(--color-action-80);
+  color: var(--color-white);
+}
+
+/* Intent: secondary — dark slate */
+.pt-btn--secondary {
+  background: var(--color-neutral-100);
+  border-color: var(--color-neutral-100);
+  color: var(--color-white);
+}
+.pt-btn--secondary:hover,
+.pt-btn--secondary:focus {
+  background: var(--color-neutral-85);
+  border-color: var(--color-neutral-85);
+}
+
+/* Intent: outline — for use on white surfaces */
+.pt-btn--outline {
+  background: transparent;
+  border-color: var(--color-neutral-100);
+  color: var(--color-neutral-100);
+}
+.pt-btn--outline:hover,
+.pt-btn--outline:focus {
+  background: var(--color-neutral-100);
+  color: var(--color-white);
+}
+
+/* Intent: outline-on-dark */
+.pt-btn--outline-light {
+  background: transparent;
+  border-color: var(--color-white);
+  color: var(--color-white);
+}
+.pt-btn--outline-light:hover,
+.pt-btn--outline-light:focus {
+  background: var(--color-white);
+  color: var(--color-neutral-100);
+}
+
+/* "Read more" / view-all link affordance used in card and list blocks */
+.pt-link-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-display);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-neutral-100);
+  text-decoration: none;
+  padding: 0.5rem 0;
+  border-bottom: 2px solid var(--color-brand-70);
+}
+.pt-link-more::after { content: "→"; }
+.pt-link-more:hover, .pt-link-more:focus { color: var(--color-brand-80); }
