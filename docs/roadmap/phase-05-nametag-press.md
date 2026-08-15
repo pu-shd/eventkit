@@ -57,6 +57,19 @@ container restart, and the PDF generator then silently draws nothing because
 Store bytes in a `BrandingAsset` table keyed by slot. Fix the bare except while you
 are there: a corrupt SVG should degrade visibly, not silently.
 
+## What to delete
+
+| Delete | Where | Replaced by |
+|---|---|---|
+| The print CSS grid and its card markup | `admin_nametags.html:213-330`, `:947-983` | The ReportLab renderer plus a PDF preview iframe |
+| `getRoleLabel` / `getRolePrintClass` | `admin_nametags.html:1203-1214` | `profile.roles[].{label,color}` — the mapping exists twice today |
+| `get_role_details` colour literals `#f58025` / `#1a1a1a` | `main.py:1041-1049` | Same profile entry |
+| `t_shirt_size` column and every reference | `models.py:29`, schemas, backup | Nothing. `ticket-reconciler` owns swag. |
+| The literal `"CAARMS 2026"` badge header | `admin_nametags.html:968`, `main.py:1068` | `profile.event.title` |
+| `caarms_0.png` / `pu-logo.svg` as **defaults** | `main.py:922-934` | `profile.nametags.{primary,sponsor}_logo_url`, with uploads in the DB |
+| Filesystem logo writes | `main.py:342-370` | `BrandingAsset` rows |
+| The bare `except: pass` around SVG parsing | `main.py:1038-1039` | An explicit failure that is visible |
+
 ## Avery geometry
 
 | Template | Card | Grid | Padding / gaps | Name / affiliation pt |
