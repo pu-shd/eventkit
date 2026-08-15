@@ -156,16 +156,19 @@ The templates in [`docs/drupal/templates/`](docs/drupal/templates/) are verified
 against this library's own parser by `tests/unit/drupal/test_doc_templates.py`,
 so they cannot drift from the code that reads them.
 
-## What is not here
+## The rest of the stack
 
-The library and the Azure toolkit are complete. What remains lives in other
+The library and the Azure toolkit are complete. The rest lives in its own
 repositories:
 
-| Not here | Where |
+| | |
 |---|---|
 | The five applications | Their own repositories, listed above |
 | Webform exports, Remote Post recipes, field-map contracts | [`drupal-event-forms`](https://github.com/pu-shd/drupal-event-forms) |
 | Architecture, runbook, security and privacy for the whole stack | [`event-stack`](https://github.com/pu-shd/event-stack) |
+
+Start at [`event-stack`](https://github.com/pu-shd/event-stack) — architecture,
+runbook, the security and privacy inventory, and eight decision records.
 
 The CLI:
 

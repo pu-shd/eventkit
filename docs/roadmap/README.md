@@ -1,7 +1,7 @@
 # Roadmap
 
-One document per phase, ordered by dependency. **Phases 0–7 are built**; phase 8
-is in progress. The table below says where each one landed.
+One document per phase, ordered by dependency. **All eight are built.** The
+table below says where each one landed.
 
 This exists so the project can be picked up on another machine from a clone alone.
 Everything needed is in the repository; nothing lives in a local scratch directory.
@@ -39,7 +39,7 @@ way can be neither reopened nor retargeted.
 | 5 | [`phase-05-nametag-press.md`](phase-05-nametag-press.md) | Avery badge PDFs | **done** | [`nametag-press`](https://github.com/pu-shd/nametag-press) |
 | 6 | [`phase-06-lodging-planner.md`](phase-06-lodging-planner.md) | Rooms, rules engine, concurrency | **done** | [`lodging-planner`](https://github.com/pu-shd/lodging-planner) |
 | 7 | [`phase-07-link-forge.md`](phase-07-link-forge.md) | Prefilled per-person links, stateless | **done** | [`link-forge`](https://github.com/pu-shd/link-forge) |
-| 8 | [`phase-08-content-repos.md`](phase-08-content-repos.md) | `drupal-event-forms` and `event-stack`, then archiving | in progress | — |
+| 8 | [`phase-08-content-repos.md`](phase-08-content-repos.md) | `drupal-event-forms` and `event-stack`, then archiving | **done** | [`drupal-event-forms`](https://github.com/pu-shd/drupal-event-forms), [`event-stack`](https://github.com/pu-shd/event-stack) |
 
 The phase documents are the **plans as written**, kept as the record of intent.
 Where the built thing diverged from the plan, [`STATUS.md`](STATUS.md) says so

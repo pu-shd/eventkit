@@ -124,7 +124,44 @@ Two of the test doubles were also lying: a mock `openssl` that printed nothing
 (so the identity step could not find the principal it had just assigned). Both
 now model the real thing.
 
-What remains outside this repository: the five applications (phases 3–7).
+## Phase 8 is complete — the extraction is finished
+
+[`drupal-event-forms`](https://github.com/pu-shd/drupal-event-forms) and
+[`event-stack`](https://github.com/pu-shd/event-stack) are published, and both
+predecessors are archived with pointer READMEs.
+
+**The `posted` rollback is resolved.** The two `big-agenda` commits that passed
+CI against `main` on 2026-06-26 were never ancestors of `main` — it had been
+rolled back. GitHub still held the objects as unreferenced, so they were fetched
+by full SHA and pushed as `recovered/big-agenda` before archiving, which would
+otherwise have left them to garbage collection. The work is a kiosk agenda
+dashboard: ~1,800 lines, never reviewed, never deployed, and it contains speaker
+photographs. `posted` is private, so the branch exposes nothing.
+
+Both structural bugs in the Drupal forms are fixed with regression fixtures
+built from the original production YAML, and all three validators are proved to
+reject rather than merely to exist.
+
+### One defect found by phase 8, in the applications
+
+Pointing `event-stack`'s `verify-stack.sh` at a locally built runtime image
+booted one for the first time — and **no application container could start**.
+The runtime `CMD` ran `uvicorn`, which appeared in no dependency list. Nothing
+caught it: the test stage installs the same dependencies but never starts the
+server the way production does, so a green suite said nothing about whether the
+shipped image runs.
+
+Fixed in all five repositories, each of which now has a `runtime-boots` CI job
+that builds `--target runtime`, starts it with the environment App Service
+supplies, waits for `/healthz`, and checks an admin route still refuses an
+anonymous caller.
+
+`verify-stack.sh` itself contributed two more zsh lessons, both found by running
+it rather than reading it: `local path` blanks `PATH` (the same family as
+`local status`), so a healthy application reported uniform "did not answer"
+failures; and curl writes `000` on a connection failure *and* exits non-zero, so
+a `|| print 000` fallback produced `000000`, which matched no case arm and let a
+dead host pass four of six checks.
 
 ## Defects found by actually running things
 
