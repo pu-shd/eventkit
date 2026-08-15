@@ -141,6 +141,38 @@ Before archiving, resolve the outstanding `posted` `main` rollback question in
 [`STATUS.md`](STATUS.md) — two `big-agenda` commits passed CI and are not on `main`.
 Archiving makes that harder to recover.
 
+## Tests
+
+A content repository still needs CI, and here the "tests" are the validators. Each
+must be proved to fail, not merely to exist — a guard nobody has seen reject
+anything is a guard nobody knows is wired up.
+
+**`tools/redact.py`** — run over every file, must reject: a `X-Drupal-Webhook-Token`
+value, a `?token=` bearer string, a live `azurewebsites.net` hostname, the Drupal
+site-directory hash, the WAF bypass header name or value, and a real attendee name
+or address in the receipt sample. Test by planting one of each in a fixture and
+asserting a non-zero exit.
+
+**`tools/validate_yaml.py`** — must reject doubly-nested `#states`, and must reject a
+`#states` comparison whose value does not appear in the referenced element's
+`#options` keys. Both are the real bugs from the predecessor form, so both get a
+regression fixture reproducing the original YAML.
+
+**`tools/check_fieldmap_sync.py`** — must reject a contract key absent from the
+referenced webform YAML, and must reject an orphan element that no contract claims.
+Test by renaming an element in a fixture and asserting the failure names it.
+
+**Round-trip test** — every `webforms/*.yaml` parses through
+`eventkit.drupal.WebformSchema`, and every `contracts/*.fieldmap.yml` resolves
+against its webform with no missing required field. This is the same check
+`tests/unit/drupal/test_doc_templates.py` already performs for the templates in
+`docs/drupal/templates/`; reuse the shape.
+
+For `event-stack`: `profile-validate.yml` runs `eventkit profile validate` over every
+`examples/*/event-profile.yaml`, and `docs-link-check.yml` fails on a broken relative
+link. `verify-stack.sh` is itself the integration test and should be runnable against
+a scratch subscription.
+
 ## Acceptance criteria
 
 - [ ] `tools/redact.py` and `tools/validate_yaml.py` both run in CI and both reject a

@@ -52,6 +52,18 @@ Also unresolved: two `big-agenda` commits passed CI against `posted`'s `main` on
 That work is not in `origin` and not covered by the `pre-extraction` tag. If the
 rollback was not deliberate it is only recoverable from a local clone.
 
+## The roadmap is merged
+
+All nine roadmap documents are on `main`. Phases 1–8 are **plans of work, not built
+code** — see [`README.md`](README.md) for the ordering and
+[`PLAN.md`](PLAN.md) for the design detail behind each.
+
+Two PR numbers were superseded during the merge (#2 → #11, #3 → #10). GitHub closes
+a pull request when its base branch is deleted, and a PR closed that way can be
+neither reopened nor retargeted. Nothing was lost; the lesson for the next stack is
+to retarget every PR to `main` *before* merging any of them, and to delete branches
+only at the end.
+
 ## Not built
 
 `auth`, `db`, `backup`, `notify`, `realtime`, `importer`, `mirror`, `admin`,
